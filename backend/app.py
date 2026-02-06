@@ -4,6 +4,7 @@ import os
 from flask_cors import CORS
 from models import db
 from routes.auth import auth_bp
+from routes.connection import connection_bp
 
 load_dotenv()
 
@@ -21,6 +22,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
+app.register_blueprint(connection_bp, url_prefix='/api/connection')
 
 @app.route('/')
 def home():
