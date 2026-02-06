@@ -19,7 +19,8 @@ class Scan(db.Model):
 class PredefinedRule(db.Model):
     __tablename__ = 'predefined_rule'
     rule_id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    rule_name = Column(String(255), nullable=False)
+    rule_name = Column(String(255), nullable=False, unique=True)
+    aws_service = Column(String(10), nullable=False)
     cnas_category = Column(String(10), nullable=False)
     description = Column(Text, nullable=True)
     severity = Column(String(20), nullable=False)
