@@ -29,7 +29,7 @@ db.init_app(app)
 
 # Register Blueprints
 app.register_blueprint(auth_bp, url_prefix='/auth')
-app.register_blueprint(connection_bp, url_prefix='/connection')
+app.register_blueprint(connection_bp, url_prefix='/api')
 
 @app.route('/')
 def home():

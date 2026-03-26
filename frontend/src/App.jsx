@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import SignIn from './SignIn'; 
 import SignUp from './SignUp';
@@ -7,6 +7,17 @@ import Dashboard from './Dashboard';
 function App() {
   // Store user info in state so we can pass it to Dashboard
   const [user, setUser] = useState(null);
+  
+  useEffect(() => {
+    // Check if user info exists in browser memory
+    const savedUser = localStorage.getItem('user_name');
+    const savedSession = localStorage.getItem('session_id');
+
+    if (savedUser && savedSession) {
+      // Put it back into the state so the Dashboard doesn't kick you out
+      setUser({ user_name: savedUser, session_id: savedSession });
+    }
+  }, []);
 
   const handleLogout = async () => {
     const sessionId = localStorage.getItem('session_id');

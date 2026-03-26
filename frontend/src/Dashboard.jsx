@@ -1,21 +1,70 @@
-import React from 'react';
-import { useNavigate, useLocation, Outlet } from 'react-router-dom'; // Added Outlet
-import { LayoutDashboard, Search, History, User, LogOut, Play } from 'lucide-react';
+import React, { useState } from 'react';
+import { useNavigate, useLocation, Outlet } from 'react-router-dom';
+import { LayoutDashboard, Search, History, User, LogOut, Play, AlertCircle } from 'lucide-react';
 import logoImg from './assets/cloudsentinel_logo.png';
 
 const Dashboard = ({ onLogout, user }) => {
     const navigate = useNavigate();
-    const location = useLocation(); 
+    const location = useLocation();
     const currentPath = location.pathname;
 
+    // --- STATES ---
+    const [showScanModal, setShowScanModal] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [scanError, setScanError] = useState('');
+    const [scanData, setScanData] = useState({
+        accessKey: '',
+        secretKey: '',
+        region: ''
+    });
+
     const handleLogoutAction = () => {
-        onLogout(); 
-        navigate('/signin'); 
+        onLogout();
+        navigate('/signin');
+    };
+
+    // --- FORM VALIDATION & SUBMISSION ---
+    const handleStartScan = async (e) => {
+        e.preventDefault();
+        setScanError('');
+
+        // 1. Validation: Check if fields are empty
+        if (!scanData.accessKey.trim() || !scanData.secretKey.trim() || !scanData.region) {
+            setScanError('All fields are required to begin the security scan.');
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            // 2. Call your Flask Backend (connection.py bp)
+            const response = await fetch('http://localhost:5000/api/verify-aws', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(scanData),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // SUCCESS: AWS keys are valid
+                console.log("Connected to Account:", data.account_id);
+                setShowScanModal(false); 
+                // Navigate to findings or show success toast
+                navigate('/findings');
+            } else {
+                // ERROR: Backend returned an error (Invalid keys, etc.)
+                setScanError(data.error || "Failed to verify AWS credentials.");
+            }
+        } catch (err) {
+            setScanError("Connection failed. Is the Flask server running?");
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
         <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
-
             {/* LEFT SIDEBAR */}
             <aside className="w-72 bg-[#252F3E] text-white flex flex-col p-6 shadow-xl z-20">
                 <div className="shrink-0 flex items-center gap-3 mb-10 px-1">
@@ -24,7 +73,7 @@ const Dashboard = ({ onLogout, user }) => {
                         <h1 className="text-[25px] font-bold tracking-tight leading-none text-white">
                             Cloud<span className="text-[#FF9900]">Sentinel</span>
                         </h1>
-                        <p className="text-[10px] uppercase tracking-[0.2em] font-semibold text-white mt-1.5 leading-none">
+                        <p className="text-[9px] uppercase tracking-[0.2em] font-semibold text-white mt-1.5 leading-none">
                             AWS Security Monitor
                         </p>
                     </div>
@@ -50,7 +99,6 @@ const Dashboard = ({ onLogout, user }) => {
                     </div>
                 </div>
 
-                {/* NAVIGATION */}
                 <nav className="flex-1 space-y-3 px-1">
                     <NavItem icon={<LayoutDashboard size={22} />} label="Dashboard" isActive={currentPath === '/dashboard'} onClick={() => navigate('/dashboard')} />
                     <NavItem icon={<Search size={22} />} label="Findings" isActive={currentPath === '/findings'} onClick={() => navigate('/findings')} />
@@ -60,18 +108,18 @@ const Dashboard = ({ onLogout, user }) => {
             </aside>
 
             {/* MAIN CONTENT */}
-            <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            <main className="w-full flex-1 flex flex-col min-w-0 overflow-hidden">
                 <header className="h-24 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0">
                     <div className="flex flex-col">
-                        <h2 className="text-[30px] font-black text-slate-800 tracking-tight capitalize">
-                            AWS Security Monitoring
-                        </h2>
+                        <h2 className="text-[30px] font-black text-slate-800 tracking-tight capitalize">AWS Security Monitoring</h2>
                         <p className="text-[15px] text-slate-500 font-bold uppercase tracking-widest">OWASP CNAS Compliance Scanner</p>
                     </div>
 
                     <div className="flex items-center gap-6">
                         {currentPath === '/dashboard' && (
-                            <button className="flex items-center gap-3 bg-[#FF9900] hover:bg-[#E68A00] text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-[#FF9900]/20 transition-all active:scale-95 animate-in fade-in zoom-in">
+                            <button 
+                                onClick={() => setShowScanModal(true)}
+                                className="flex items-center gap-3 bg-[#FF9900] hover:bg-[#E68A00] text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-[#FF9900]/20 transition-all active:scale-95">
                                 <Play size={16} fill="currentColor" />
                                 <span className="tracking-wide">Scan Now</span>
                             </button>
@@ -83,53 +131,160 @@ const Dashboard = ({ onLogout, user }) => {
                     </div>
                 </header>
                 
-                <section className="flex-1 overflow-y-auto pt-2 px-7 pb-7 bg-slate-50/50">
-                    <div className="max-w-7xl mx-auto flex flex-col h-full">
-                        
-                        <div className="mb-4 animate-in fade-in slide-in-from-left-4 duration-500">
+                <section className="w-full flex-1 overflow-y-auto pt-2 px-7 pb-7 bg-slate-50/50">
+                    <div className="w-full mx-auto flex flex-col h-full">
+                        <div className="mb-4">
                             <h1 className="text-[30px] font-black text-slate-900 tracking-tight capitalize">
                                 {currentPath === '/dashboard' ? 'Security Overview' : currentPath.split('/')[1]}
                             </h1>
                             <p className="text-[16px] text-slate-500 font-medium mt-1">
                                 {currentPath === '/dashboard' && `Welcome back, ${user?.user_name || 'Admin'}. Monitor your AWS security status.`}
-                                {currentPath === '/findings' && "Detailed analysis of vulnerabilities."}
-                                {currentPath === '/history' && "Review previous scan records."}
-                                {currentPath === '/profile' && "Update your account details."}
                             </p>
                         </div>
 
-                        {/* THE LARGE WHITE CARD */}
-                        <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[500px] p-10 flex-1 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                            
-                            {/* CRITICAL CHANGE: The Outlet renders the child routes defined in App.jsx */}
+                        <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[500px] p-10 flex-1">
                             <Outlet /> 
-
                         </div>
                     </div>
                 </section>
             </main>
+
+            {/* --- MODAL OVERLAY --- */}
+            {showScanModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[#252F3E]/40 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white w-full max-w-2xl rounded-[1.5rem] shadow-2xl pt-4 pb-8 px-8 flex flex-col relative animate-in zoom-in-95 duration-300">
+                        
+                        {/* 1. HEADER */}
+                        <div className="flex items-center gap-4 mb-3 px-1">
+                            <img src={logoImg} alt="Logo" className="w-16 h-16 object-contain shrink-0" />
+                            <div className="flex flex-col justify-center">
+                                <h2 className="text-[28px] font-extrabold text-slate-900 tracking-tight leading-none">AWS Credentials Required</h2>
+                                <p className="text-[15px] text-slate-500 font-medium mt-2 leading-none">Provide credentials to scan your AWS account</p>
+                            </div>
+                        </div>
+
+                        <hr className="border-slate-300 mb-6 w-full border-t-1"/>
+
+                        {/* ERROR MESSAGE */}
+                        {scanError && (
+                            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-center gap-3">
+                                <AlertCircle className="text-red-500" size={18} />
+                                <p className="text-red-600 text-[13px] font-bold">{scanError}</p>
+                            </div>
+                        )}
+
+                        {/* 2. INFO CARDS */}
+                        <div className="grid grid-cols-2 gap-4 mb-5">
+                            <div className="bg-blue-50 border border-blue-200 p-5 rounded-3xl">
+                                <span className="text-[12px] font-bold uppercase tracking-widest text-blue-700 block mb-2">Permissions:</span>
+                                <div className="flex items-start gap-3">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0 mt-2"></div>
+                                    <p className="text-[13px] text-blue-600 leading-relaxed font-medium">Read-only access to S3, IAM, VPC, EC2 and EBS.</p>
+                                </div>
+                            </div>
+                            <div className="bg-green-50 border border-green-200 p-5 rounded-3xl">
+                                <span className="text-[12px] font-bold uppercase tracking-widest text-green-700 block mb-2">Scope:</span>
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex items-start gap-3">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-green-600 shrink-0 mt-2"></div>
+                                        <p className="text-[13px] text-green-600 font-medium">Read-only operations only.</p>
+                                    </div>
+                                    <div className="flex items-start gap-3">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-green-600 shrink-0 mt-2"></div>
+                                        <p className="text-[13px] text-green-600 font-medium">Credentials are not stored.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 3. FORM */}
+                        <form className="space-y-5" onSubmit={handleStartScan}>
+                            <div className="space-y-1">
+                                <label className="text-[15px] font-bold text-slate-700 ml-2">AWS Access Key ID</label>
+                                <input 
+                                    type="text" 
+                                    value={scanData.accessKey}
+                                    onChange={(e) => setScanData({...scanData, accessKey: e.target.value})}
+                                    placeholder="Enter your AWS Access Key ID" 
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-5 outline-none focus:ring-2 focus:ring-[#FF9900] text-[15px]"
+                                />
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[15px] font-bold text-slate-700 ml-2">AWS Secret Access Key</label>
+                                <input 
+                                    type="password" 
+                                    value={scanData.secretKey}
+                                    onChange={(e) => setScanData({...scanData, secretKey: e.target.value})}
+                                    placeholder="Enter your AWS Secret Access Key" 
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-5 outline-none focus:ring-2 focus:ring-[#FF9900] text-[15px]"
+                                />
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[14px] font-bold text-slate-700 ml-2">Region</label>
+                                <div className="relative group">
+                                    <select 
+                                        value={scanData.region}
+                                        onChange={(e) => setScanData({...scanData, region: e.target.value})}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-5 outline-none focus:ring-2 focus:ring-[#FF9900] appearance-none cursor-pointer text-[15px] text-slate-400 valid:text-slate-700"
+                                        required
+                                    >
+                                        <option value="" disabled hidden>Select AWS Region</option>
+                                        <option value="ap-southeast-5" className="text-slate-700">ap-southeast-5 (Malaysia)</option>
+                                        <option value="ap-northeast-1" className="text-slate-700">ap-northeast-1 (Tokyo)</option>
+                                        <option value="ap-northeast-2" className="text-slate-700">ap-northeast-2 (Seoul)</option>
+                                        <option value="ap-northeast-3" className="text-slate-700">ap-northeast-3 (Osaka)</option>
+                                        <option value="ap-southeast-1" className="text-slate-700">ap-southeast-1 (Singapore)</option>
+                                        <option value="ap-southeast-2" className="text-slate-700">ap-southeast-2 (Sydney)</option>
+                                        <option value="ca-central-1" className="text-slate-700">ca-central-1 (Central)</option>
+                                        <option value="eu-central-1" className="text-slate-700">eu-central-1 (Frankfurt)</option>
+                                        <option value="eu-north-1" className="text-slate-700">eu-north-1 (Stockholm)</option>
+                                        <option value="eu-west-1" className="text-slate-700">eu-west-1 (Ireland)</option>
+                                        <option value="eu-west-2" className="text-slate-700">eu-west-2 (London)</option>
+                                        <option value="eu-west-3" className="text-slate-700">eu-west-3 (Paris)</option>
+                                        <option value="sa-east-1" className="text-slate-700">sa-east-1 (São Paulo)</option>
+                                        <option value="us-east-1" className="text-slate-700">us-east-1 (N.Virginia)</option>
+                                        <option value="us-east-2" className="text-slate-700">us-east-2 (Ohio)</option>
+                                        <option value="us-west-1" className="text-slate-700">us-west-1 (N.California)</option>
+                                        <option value="us-west-1" className="text-slate-700">us-west-2 (Oregon)</option>
+                                    </select>
+                                    <div className="absolute inset-y-0 right-5 flex items-center pointer-events-none text-slate-400">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="m6 9 6 6 6-6"/></svg>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-4 pt-3">
+                                <button 
+                                    type="button" 
+                                    onClick={() => setShowScanModal(false)}
+                                    className="flex-1 bg-slate-100 text-slate-600 font-bold py-4 rounded-2xl transition-all shadow-lg active:scale-95"
+                                >
+                                    Cancel
+                                </button>
+                                <button 
+                                    type="submit"
+                                    disabled={loading}
+                                    className="flex-1 bg-[#FF9900] hover:bg-[#D17D00] text-white font-bold py-4 rounded-2xl shadow-lg transition-all active:scale-95 disabled:opacity-50"
+                                >
+                                    {loading ? "Verifying..." : "Start Scan"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
 
 const NavItem = ({ icon, label, isActive, onClick }) => (
-    <div 
-        onClick={onClick} 
-        className={`flex items-center gap-4 p-4 rounded-[1.5rem] cursor-pointer transition-all duration-300 ${
-            isActive 
-                ? 'bg-[#FF9900] text-white shadow-lg shadow-[#FF9900]/20 scale-[1.01]' 
-                : 'text-white/40 hover:bg-white/5 hover:text-white'
-        }`}
-    >
-        {/* Subtle icon weight change */}
+    <div onClick={onClick} className={`flex items-center gap-4 p-4 rounded-[1.5rem] cursor-pointer transition-all duration-300 ${isActive ? 'bg-[#FF9900] text-white shadow-lg' : 'text-white/40 hover:bg-white/5 hover:text-white'}`}>
         <div className={`transition-colors ${isActive ? 'text-white' : 'text-white/40'}`}>
             {React.cloneElement(icon, { strokeWidth: isActive ? 2.5 : 2 })}
         </div> 
-
-        {/* Using Semibold for Active and Medium for Inactive */}
-        <span className={`tracking-wide text-[15px] ${isActive ? 'font-bold' : 'font-bold'}`}>
-            {label}
-        </span>
+        <span className="tracking-wide text-[15px] font-bold">{label}</span>
     </div>
 );
 

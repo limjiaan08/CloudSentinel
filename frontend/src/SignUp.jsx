@@ -62,9 +62,9 @@ function SignUp() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-[#252F3E] flex flex-col items-center pt-12 p-6 font-sans overflow-y-auto">
+    <div className="min-h-screen w-full bg-[#252F3E] flex flex-col items-center justify-center pt-12 p-6 font-sans overflow-y-auto">
       
-      <div className="bg-white w-[500px] rounded-[3rem] shadow-2xl p-10 flex flex-col items-center">
+      <div className="bg-white w-[500px] rounded-[3rem] shadow-2xl p-8 flex flex-col items-center">
         
         <div className="w-full flex justify-center mb-0">
           <img 
@@ -78,7 +78,7 @@ function SignUp() {
           <span className="text-black">Cloud</span>
           <span className="text-[#FF9900]">Sentinel</span>
         </h1>
-        <p className="text-[20px] text-[#505050] text-sm mb-10 mt-0">Create your account</p>
+        <p className="text-[20px] text-[#505050] mb-10 mt-0">Create your account</p>
         
         {message.text && (
             <div className={`mb-4 p-3 rounded-xl w-full text-center text-sm font-bold ${message.isError ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
@@ -143,7 +143,7 @@ function SignUp() {
           </button>
         </form>
 
-        <p className="mt-8 text-[20px] text-slate-600 text-sm">
+        <p className="mt-8 text-[16px] text-slate-600">
           Already have an account?{' '}
           <span 
             onClick={() => navigate('/signin')} // 4. Navigate to signin route
