@@ -1,20 +1,64 @@
 import React, { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import SignIn from './SignIn'; 
-import SignUp from './SignUp'; // You can uncomment this later
+import SignUp from './SignUp';
+import Dashboard from './Dashboard';
 
 function App() {
-  const [currentPage, setCurrentPage] = useState('signin');
+  // Store user info in state so we can pass it to Dashboard
+  const [user, setUser] = useState(null);
+
+  const handleLogout = async () => {
+    const sessionId = localStorage.getItem('session_id');
+
+    if (sessionId) {
+      try {
+        // API Call to your Flask /auth/logout
+        await fetch('http://localhost:5000/auth/logout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: sessionId }),
+        });
+      } catch (error) {
+        console.error("Logout error:", error);
+      }
+    }
+
+    // Clear local storage and reset state
+    localStorage.clear();
+    setUser(null);
+  };
 
   return (
-    <>
-      {currentPage === 'signin' && (
-        <SignIn onNavigate={() => setCurrentPage('signup')} />
-      )}
+    <Router>
+      <Routes>
+        {/* 1. INITIAL REDIRECT: Send users from "/" to "/signin" */}
+        <Route path="/" element={<Navigate to="/signin" replace />} />
 
-      {currentPage === 'signup' && (
-        <SignUp onNavigate={() => setCurrentPage('signin')} />
-      )}
-    </>
+        {/* 2. SIGN IN: Pass setUser so SignIn can update the user data */}
+        <Route 
+          path="/signin" 
+          element={<SignIn onLoginSuccess={(data) => setUser(data)} />} 
+        />
+
+        {/* 3. SIGN UP */}
+        <Route path="/signup" element={<SignUp />} />
+
+        {/* 4. DASHBOARD: Pass user and a clearUser function for logout */}
+        <Route 
+          path="/dashboard" 
+          element={
+            <Dashboard 
+              user={user} 
+              onLogout={handleLogout} 
+            />
+          } 
+        />
+
+        {/* 5. CATCH-ALL: Redirect any broken links back to signin */}
+        <Route path="*" element={<Navigate to="/signin" replace />} />
+      </Routes>
+    </Router>
   );
 }
 

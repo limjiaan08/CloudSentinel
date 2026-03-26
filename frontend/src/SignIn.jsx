@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom'; // 1. Import useNavigate
 /* 1. IMPORT YOUR IMAGE FROM ASSETS */
 import logoImg from './assets/cloudsentinel_logo.png'; 
 
-function SignIn({onNavigate}) {
+function SignIn({ onLoginSuccess }) { // Receive the success handler from App.jsx
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', isError: false });
+
+  const navigate = useNavigate(); // 2. Initialize the hook
 
   const handleSignIn = async (e) => {
     e.preventDefault();
@@ -15,8 +17,7 @@ function SignIn({onNavigate}) {
     setMessage({ text: '', isError: false });
 
     try {
-      // API Call to your Auth Blueprint (Matching the /api/auth prefix)
-      const response = await fetch('http://localhost:5000/api/auth/login', {
+      const response = await fetch('http://localhost:5000/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -28,18 +29,19 @@ function SignIn({onNavigate}) {
       const data = await response.json();
 
       if (response.ok) {
-        // SUCCESS: Flask returns 200, user_id, user_name, and session_id
         setMessage({ text: `Welcome back, ${data.user_name}!`, isError: false });
         
-        // FOR YOUR FYP: Save the session info so you stay logged in
+        // Save session info to localStorage so logout can find it
         localStorage.setItem('session_id', data.session_id);
         localStorage.setItem('user_name', data.user_name);
 
-        // Redirect to dashboard (or wherever your next page is)
-        console.log("Login Successful! Session ID:", data.session_id);
-        // setTimeout(() => onNavigate('dashboard'), 1500); 
+        // 3. Update App state and move to dashboard
+        setTimeout(() => {
+          onLoginSuccess(data); // This updates the 'user' state in App.jsx
+          navigate('/dashboard'); // This physically changes the URL
+        }, 1000);
+
       } else {
-        // ERROR: Flask returns 401 (Invalid) or 400 (Missing fields)
         setMessage({ text: data.error || "Login failed", isError: true });
       }
     } catch (error) {
@@ -50,13 +52,10 @@ function SignIn({onNavigate}) {
   };
 
   return (
-    /* BACKGROUND: #252F3E */
-    <div className="min-h-screen w-full bg-[#252F3E] flex flex-col items-center pt-12 p-6 font-sans overflow-y-scroll">
+    <div className="min-h-screen w-full bg-[#252F3E] flex flex-col items-center pt-12 p-6 font-sans overflow-y-auto">
       
-      {/* THE WHITE CARD */}
       <div className="bg-white w-[500px] rounded-[3rem] shadow-2xl p-10 flex flex-col items-center">
         
-        {/* 2. LOGO IMAGE CONTAINER */}
         <div className="w-full flex justify-center mb-0">
           <img 
             src={logoImg} 
@@ -65,7 +64,6 @@ function SignIn({onNavigate}) {
           />
         </div>
 
-        {/* TITLES */}
         <h1 className="text-[50px] font-bold tracking-tight mt-4 flex gap-1">
           <span className="text-black">Cloud</span>
           <span className="text-[#FF9900]">Sentinel</span>
@@ -78,7 +76,6 @@ function SignIn({onNavigate}) {
           </div>
         )}
 
-        {/* FORM */}
         <form className="w-full space-y-5" onSubmit={handleSignIn}>
           <div className="space-y-1">
             <label className="text-[18px] font-semibold text-slate-700 ml-1">Email address</label>
@@ -88,6 +85,7 @@ function SignIn({onNavigate}) {
               placeholder="Enter your email address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              required
             />
           </div>
 
@@ -99,6 +97,7 @@ function SignIn({onNavigate}) {
               placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              required
             />
           </div>
 
@@ -113,13 +112,13 @@ function SignIn({onNavigate}) {
         <p className="mt-8 text-[20px] text-slate-600 text-sm">
           Don't have an account?{' '}
           <span 
-            onClick={onNavigate}
+            onClick={() => navigate('/signup')} // Use navigate for Signup too
             className="text-[#FF9900] font-bold cursor-pointer transition-colors duration-200 hover:text-[#D17D00]">
             Sign Up
           </span>
         </p>
       </div>
-      {/* FOOTER TEXT - Outside the card */}
+      
       <div className="mt-6">
         <p className="text-white/60 text-xs font-medium tracking-[0.2em] uppercase">
           Secure AWS misconfiguration detection

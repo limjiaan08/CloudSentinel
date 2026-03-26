@@ -9,7 +9,13 @@ from routes.connection import connection_bp
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+
+# --- FIX: Detailed CORS Configuration ---
+CORS(app, resources={r"/*": {
+    "origins": "http://localhost:5173",
+    "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    "allow_headers": ["Content-Type", "Authorization"]
+}})
 
 db_user = os.getenv('DB_USER', 'root')
 db_password = os.getenv('DB_PASSWORD', '')
@@ -21,8 +27,9 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
 
-app.register_blueprint(auth_bp, url_prefix='/api/auth')
-app.register_blueprint(connection_bp, url_prefix='/api/connection')
+# Register Blueprints
+app.register_blueprint(auth_bp, url_prefix='/auth')
+app.register_blueprint(connection_bp, url_prefix='/connection')
 
 @app.route('/')
 def home():
