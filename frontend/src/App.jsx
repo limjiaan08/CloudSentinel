@@ -5,26 +5,30 @@ import SignUp from './SignUp';
 import Dashboard from './Dashboard';
 
 function App() {
-  // Store user info in state so we can pass it to Dashboard
-  const [user, setUser] = useState(null);
-  
-  useEffect(() => {
-    // Check if user info exists in browser memory
+  const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem('user_name');
     const savedSession = localStorage.getItem('session_id');
+    const savedId = localStorage.getItem('user_id'); // NEW: Get user_id
+    
+    return (savedUser && savedSession && savedId) 
+      ? { user_name: savedUser, session_id: savedSession, user_id: savedId } 
+      : null;
+  });
+  
+  useEffect(() => {
+    const savedUser = localStorage.getItem('user_name');
+    const savedSession = localStorage.getItem('session_id');
+    const savedId = localStorage.getItem('user_id'); // NEW: Get user_id
 
-    if (savedUser && savedSession) {
-      // Put it back into the state so the Dashboard doesn't kick you out
-      setUser({ user_name: savedUser, session_id: savedSession });
+    if (savedUser && savedSession && savedId) {
+      setUser({ user_name: savedUser, session_id: savedSession, user_id: savedId });
     }
   }, []);
 
   const handleLogout = async () => {
     const sessionId = localStorage.getItem('session_id');
-
     if (sessionId) {
       try {
-        // API Call to your Flask /auth/logout
         await fetch('http://localhost:5000/auth/logout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -34,8 +38,6 @@ function App() {
         console.error("Logout error:", error);
       }
     }
-
-    // Clear local storage and reset state
     localStorage.clear();
     setUser(null);
   };
@@ -44,7 +46,7 @@ function App() {
     <Router>
       <Routes>
         {/* 1. INITIAL REDIRECT: Send users from "/" to "/signin" */}
-        <Route path="/" element={<Navigate to="/signin" replace />} />
+        <Route path="/" element={<Navigate to={user ? "/dashboard" : "/signin"} replace />} />
 
         {/* 2. SIGN IN: Pass setUser so SignIn can update the user data */}
         <Route 
@@ -55,15 +57,25 @@ function App() {
         {/* 3. SIGN UP */}
         <Route path="/signup" element={<SignUp />} />
 
-        {/* 4. DASHBOARD: Pass user and a clearUser function for logout */}
+        {/* 4. INDEPENDENT DEDICATED LINKS (Similar Design) */}
         <Route 
           path="/dashboard" 
-          element={
-            <Dashboard 
-              user={user} 
-              onLogout={handleLogout} 
-            />
-          } 
+          element={user ? <Dashboard user={user} onLogout={handleLogout} /> : <Navigate to="/signin" />} 
+        />
+        
+        <Route 
+          path="/findings" 
+          element={user ? <Dashboard user={user} onLogout={handleLogout} /> : <Navigate to="/signin" />} 
+        />
+
+        <Route 
+          path="/history" 
+          element={user ? <Dashboard user={user} onLogout={handleLogout} /> : <Navigate to="/signin" />} 
+        />
+
+        <Route 
+          path="/profile" 
+          element={user ? <Dashboard user={user} onLogout={handleLogout} /> : <Navigate to="/signin" />} 
         />
 
         {/* 5. CATCH-ALL: Redirect any broken links back to signin */}

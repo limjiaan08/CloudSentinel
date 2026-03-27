@@ -8,7 +8,7 @@ class Scan(db.Model):
     __tablename__ = 'scan'
     scan_id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String(36), ForeignKey('user.user_id'), nullable=False)
-    start_time = Column(DateTime, default=datetime.utcnow)
+    start_time = Column(DateTime, nullable=False)
     end_time = Column(DateTime, nullable=True)
     duration = Column(Integer, nullable=True)
     scan_status = Column(String(20), default='PENDING')
