@@ -34,6 +34,7 @@ function SignIn({ onLoginSuccess }) { // Receive the success handler from App.js
         // Save session info to localStorage so logout can find it
         localStorage.setItem('session_id', data.session_id);
         localStorage.setItem('user_name', data.user_name);
+        localStorage.setItem('user_id', data.user_id)
 
         // 3. Update App state and move to dashboard
         setTimeout(() => {

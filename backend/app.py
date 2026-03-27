@@ -5,6 +5,7 @@ from flask_cors import CORS
 from models import db
 from routes.auth import auth_bp
 from routes.connection import connection_bp
+from routes.config_fetching import config_bp
 
 load_dotenv()
 
@@ -30,6 +31,7 @@ db.init_app(app)
 # Register Blueprints
 app.register_blueprint(auth_bp, url_prefix='/auth')
 app.register_blueprint(connection_bp, url_prefix='/api')
+app.register_blueprint(config_bp, url_prefix='/api')
 
 @app.route('/')
 def home():
