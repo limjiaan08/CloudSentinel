@@ -82,7 +82,7 @@ function SignIn({ onLoginSuccess }) { // Receive the success handler from App.js
             <label className="text-[18px] font-semibold text-slate-700 ml-1">Email address</label>
             <input 
               type="email" 
-              className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-5 outline-none focus:ring-2 focus:ring-blue-500 transition-all text-[18px] text-slate-800 placeholder:text-slate-400"
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-5 outline-none focus:ring-2 focus:ring-[#FF9900] transition-all text-[18px] text-slate-800 placeholder:text-slate-400"
               placeholder="Enter your email address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -94,7 +94,7 @@ function SignIn({ onLoginSuccess }) { // Receive the success handler from App.js
             <label className="text-[18px] font-semibold text-slate-700 ml-1">Password</label>
             <input 
               type="password" 
-              className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-5 outline-none focus:ring-2 focus:ring-blue-500 transition-all text-[18px] text-slate-800"
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-5 outline-none focus:ring-2 focus:ring-[#FF9900] transition-all text-[18px] text-slate-800"
               placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
