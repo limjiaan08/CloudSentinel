@@ -190,7 +190,7 @@ const Dashboard = ({ onLogout, user }) => {
                     </div>
                 </header>
                 
-                <section className="w-full flex-1 overflow-y-auto pt-2 px-6 pb-7 bg-slate-50/50">
+                <section className="w-full flex-1 overflow-y-auto pt-2 px-6 pb-6 bg-slate-50/50">
                     <div className="w-full mx-auto flex flex-col h-full">
                         <div className="mb-4">
                             <h1 className="text-[30px] font-black text-slate-900 tracking-tight capitalize">
@@ -306,8 +306,22 @@ const Dashboard = ({ onLogout, user }) => {
                                             >
                                                 <option value="" disabled hidden>Select AWS Region</option>
                                                 <option value="ap-southeast-5" className="text-slate-700">ap-southeast-5 (Malaysia)</option>
+                                                <option value="ap-northeast-1" className="text-slate-700">ap-northeast-1 (Tokyo)</option>
+                                                <option value="ap-northeast-2" className="text-slate-700">ap-northeast-2 (Seoul)</option>
+                                                <option value="ap-northeast-3" className="text-slate-700">ap-northeast-3 (Osaka)</option>
                                                 <option value="ap-southeast-1" className="text-slate-700">ap-southeast-1 (Singapore)</option>
+                                                <option value="ap-southeast-2" className="text-slate-700">ap-southeast-2 (Sydney)</option>
+                                                <option value="ca-central-1" className="text-slate-700">ca-central-1 (Central)</option>
+                                                <option value="eu-central-1" className="text-slate-700">eu-central-1 (Frankfurt)</option>
+                                                <option value="eu-north-1" className="text-slate-700">eu-north-1 (Stockholm)</option>
+                                                <option value="eu-west-1" className="text-slate-700">eu-west-1 (Ireland)</option>
+                                                <option value="eu-west-2" className="text-slate-700">eu-west-2 (London)</option>
+                                                <option value="eu-west-3" className="text-slate-700">eu-west-3 (Paris)</option>
+                                                <option value="sa-east-1" className="text-slate-700">sa-east-1 (São Paulo)</option>
                                                 <option value="us-east-1" className="text-slate-700">us-east-1 (N.Virginia)</option>
+                                                <option value="us-east-2" className="text-slate-700">us-east-2 (Ohio)</option>
+                                                <option value="us-west-1" className="text-slate-700">us-west-1 (N.California)</option>
+                                                <option value="us-west-1" className="text-slate-700">us-west-2 (Oregon)</option>
                                             </select>
                                             <div className="absolute inset-y-0 right-5 flex items-center pointer-events-none text-slate-400">
                                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="m6 9 6 6 6-6"/></svg>

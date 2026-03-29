@@ -54,7 +54,7 @@ def verify_aws_connection():
     except ClientError as e:
         error_code = e.response['Error']['Code']
         if error_code in ['InvalidClientTokenId', 'SignatureDoesNotMatch']:
-            return jsonify({"error": "Invalid AWS Access Key or Secret Key"}), 401
+            return jsonify({"error": "Invalid AWS Access Key ID or AWS Secret Access Key"}), 401
         return jsonify({"error": f"AWS Error: {error_code}"}), 400
         
     except Exception as e:
