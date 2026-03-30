@@ -21,6 +21,8 @@ const Dashboard = ({ onLogout, user }) => {
         secretKey: '',
         region: ''
     });
+    const [currentService, setCurrentService] = useState(''); // Tracking S3, IAM, etc.
+    const [completedServices, setCompletedServices] = useState([]);
 
     // --- DYNAMIC TITLES ---
     const pageContent = {
@@ -64,7 +66,6 @@ const Dashboard = ({ onLogout, user }) => {
     const handleStartScan = async (e) => {
         e.preventDefault();
         setScanError('');
-
         if (!scanData.accessKey.trim() || !scanData.secretKey.trim() || !scanData.region) {
             setScanError('All fields are required to begin the security scan.');
             return;
@@ -73,51 +74,60 @@ const Dashboard = ({ onLogout, user }) => {
         setLoading(true);
 
         try {
-            // STEP 1: Verify Credentials and Create Scan Entry
+            // STEP 1: Verify Credentials
             const verifyResponse = await fetch('http://localhost:5000/api/verify-aws', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    ...scanData,
-                    userId: user?.user_id || user?.id // Ensure you pass the logged-in user's ID
-                }),
+                body: JSON.stringify({ ...scanData, userId: user?.user_id || user?.id }),
             });
 
             const verifyData = await verifyResponse.json();
 
             if (verifyResponse.ok) {
-                // STEP 2: Credentials are valid, now start the "Scanning" UI
                 const currentScanId = verifyData.scan_id;
                 setLoading(false);
-                setIsScanning(true); // Switch to the scanning progress view
+                setIsScanning(true);
                 
-                // STEP 3: Trigger the Configuration Fetching
+                // --- PROGRESS SIMULATION START ---
+                const services = ['S3 Storage', 'EBS Volumes', 'IAM Identities', 'VPC Networking', 'Security Groups'];
+                let currentIdx = 0;
+                
+                const progressInterval = setInterval(() => {
+                    if (currentIdx < services.length) {
+                        setCurrentService(services[currentIdx]);
+                        setScanProgress((prev) => Math.min(prev + 18, 90)); // Move up to 90%
+                        currentIdx++;
+                    }
+                }, 1500); 
+                // --- PROGRESS SIMULATION END ---
+
+                // STEP 2: Actual Fetch
                 const fetchResponse = await fetch('http://localhost:5000/api/fetch-config', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        ...scanData, 
-                        scan_id: currentScanId 
-                    }),
+                    body: JSON.stringify({ ...scanData, scan_id: currentScanId }),
                 });
 
+                clearInterval(progressInterval); // Stop the simulator
+
                 if (fetchResponse.ok) {
+                    setCurrentService('Scan Complete!');
                     setScanProgress(100);
                     setTimeout(() => {
                         resetForm();
                         setShowScanModal(false);
                         navigate('/findings');
-                    }, 800);
+                    }, 1000);
                 } else {
                     const fetchError = await fetchResponse.json();
-                    setScanError(fetchError.error || "Failed during configuration fetching.");
+                    setScanError(fetchError.error || "Failed during scanning.");
                     setIsScanning(false);
                 }
             } else {
                 setScanError(verifyData.error || "Failed to verify AWS credentials.");
             }
         } catch (err) {
-            setScanError("Connection failed. Is the Flask server running?");
+            setScanError("Connection failed. Check server status.");
         } finally {
             setLoading(false);
         }
@@ -349,26 +359,77 @@ const Dashboard = ({ onLogout, user }) => {
                             </>
                         ) : (
                             // --- VIEW 2: NEW SCANNING PROGRESS STATE ---
-                            <div className="flex flex-col items-center text-center py-6 animate-in zoom-in-95 duration-300">
-                                <div className="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center mb-6">
-                                    <RefreshCw size={40} className="text-[#FF9900] animate-spin" />
+                            // --- VIEW 2: REFINED AUDITOR UI ---
+                            <div className="flex flex-col py-2 animate-in zoom-in-95 duration-300">
+                                {/* Header with Pulse */}
+                                <div className="flex items-center gap-4 mb-8">
+                                    <div className="relative">
+                                        <div className="absolute inset-0 bg-[#FF9900] rounded-full animate-ping opacity-20"></div>
+                                        <div className="relative bg-[#FF9900]/10 p-4 rounded-2xl">
+                                            <RefreshCw size={28} className="text-[#FF9900] animate-spin" />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <h2 className="text-[28px] font-extrabold text-slate-900 tracking-tight leading-none">Scanning in Progress</h2>
+                                        <div className="flex items-center gap-2 mt-2">
+                                            <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
+                                            <p className="text-[15px] text-slate-500 font-bold uppercase tracking-wider">
+                                                {scanProgress < 100 ? `Analyzing ${currentService}...` : 'Finishing...'}
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
-                                <h2 className="text-[26px] font-black text-slate-900 tracking-tight leading-none mb-3">Scanning in Progress</h2>
-                                <p className="text-[15px] text-slate-500 font-medium px-4 mb-8">
-                                    CloudSentinel is retrieving configurations and checking for OWASP CNAS misconfigurations...
-                                </p>
-                                
-                                {/* Progress Bar */}
-                                <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden mb-8">
-                                    <div 
-                                        className="bg-[#FF9900] h-full transition-all duration-500 ease-out"
-                                        style={{ width: `${scanProgress}%` }}
-                                    ></div>
+
+                                {/* Service List Checklist */}
+                                <div className="space-y-4 mb-8">
+                                    {['S3', 'EBS', 'IAM', 'VPC', 'EC2'].map((svc, idx) => {
+                                        const isCompleted = scanProgress > (idx + 1) * 20;
+                                        const isCurrent = scanProgress > idx * 20 && scanProgress <= (idx + 1) * 20;
+                                        
+                                        return (
+                                            <div key={svc} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                                                isCompleted ? 'bg-green-50 border-green-100' : 
+                                                isCurrent ? 'bg-slate-50 border-[#FF9900]/30 shadow-sm' : 'bg-white border-slate-100 opacity-40'
+                                            }`}>
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
+                                                        isCompleted ? 'bg-green-500 text-white' : 'border-2 border-slate-300'
+                                                    }`}>
+                                                        {isCompleted && (
+                                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="4">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                            </svg>
+                                                        )}
+                                                    </div>
+                                                    <span className={`text-[13px] font-bold ${isCompleted ? 'text-green-700' : 'text-slate-700'}`}>{svc} Configurations</span>
+                                                </div>
+                                                {isCurrent && <span className="text-[10px] font-bold text-[#FF9900] animate-pulse">SCANNING...</span>}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Progress Bar Container */}
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-end mb-1">
+                                        <span className="text-[12px] font-extrabold text-slate-600 uppercase tracking-widest">Global Progress</span>
+                                        <span className="text-[15px] font-extrabold text-[#FF9900]">{scanProgress}%</span>
+                                    </div>
+                                    <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                                        <div 
+                                            className="bg-[#FF9900] h-full transition-all duration-700 ease-in-out shadow-[0_0_10px_#FF9900/30]"
+                                            style={{ width: `${scanProgress}%` }}
+                                        ></div>
+                                    </div>
                                 </div>
 
                                 <button 
-                                    onClick={() => { setIsScanning(false); setShowScanModal(false); resetForm(); }}
-                                    className="bg-slate-100 text-slate-600 font-bold px-8 py-3 rounded-2xl transition-all hover:bg-red-50 hover:text-red-500 active:scale-95"
+                                    onClick={() => { 
+                                        setIsScanning(false); 
+                                        setShowScanModal(false); 
+                                        resetForm(); 
+                                    }}
+                                    className="mt-5 px-10 py-4 bg-slate-50 text-slate-500 font-extrabold text-[13px] uppercase tracking-[0.2em] rounded-2xl border border-slate-200/60 shadow-sm transition-all duration-300 hover:bg-red-50 hover:text-red-600 hover:border-red-200 hover:shadow-md hover:shadow-red-500/10 active:scale-95 disabled:opacity-50"
                                 >
                                     Cancel Scan
                                 </button>
@@ -377,6 +438,18 @@ const Dashboard = ({ onLogout, user }) => {
                     </div>
                 </div>
             )}
+            {/* --- DEBUG: TEMPO PREVIEW BUTTON --- */}
+            <button 
+                onClick={() => {
+                    setShowScanModal(true);
+                    setIsScanning(true);
+                    setScanProgress(25);
+                    setCurrentService('IAM Identities');
+                }}
+                className="fixed bottom-6 right-6 z-[200] bg-slate-800/80 hover:bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full backdrop-blur-md border border-white/10 shadow-2xl transition-all active:scale-95"
+            >
+                Preview Loading UI
+            </button>
         </div>
     );
 };
