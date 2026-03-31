@@ -23,6 +23,7 @@ const Dashboard = ({ onLogout, user }) => {
     });
     const [currentService, setCurrentService] = useState(''); // Tracking S3, IAM, etc.
     const [completedServices, setCompletedServices] = useState([]);
+    const [currentScanId, setCurrentScanId] = useState(null);
 
     // --- DYNAMIC TITLES ---
     const pageContent = {
@@ -67,11 +68,12 @@ const Dashboard = ({ onLogout, user }) => {
         e.preventDefault();
         setScanError('');
         if (!scanData.accessKey.trim() || !scanData.secretKey.trim() || !scanData.region) {
-            setScanError('All fields are required to begin the security scan.');
+            setScanError('All fields are required.');
             return;
         }
 
         setLoading(true);
+        let progressInterval;
 
         try {
             // STEP 1: Verify Credentials
@@ -84,52 +86,121 @@ const Dashboard = ({ onLogout, user }) => {
             const verifyData = await verifyResponse.json();
 
             if (verifyResponse.ok) {
-                const currentScanId = verifyData.scan_id;
+                const scanId = verifyData.scan_id;
+                setCurrentScanId(scanId);
                 setLoading(false);
                 setIsScanning(true);
                 
-                // --- PROGRESS SIMULATION START ---
-                const services = ['S3 Storage', 'EBS Volumes', 'IAM Identities', 'VPC Networking', 'Security Groups'];
-                let currentIdx = 0;
-                
-                const progressInterval = setInterval(() => {
-                    if (currentIdx < services.length) {
-                        setCurrentService(services[currentIdx]);
-                        setScanProgress((prev) => Math.min(prev + 18, 90)); // Move up to 90%
-                        currentIdx++;
-                    }
-                }, 1500); 
-                // --- PROGRESS SIMULATION END ---
+                // --- AUTHENTIC MILESTONE SIMULATION ---
+                const services = [
+                    { name: 'S3 Storage', max: 20 },
+                    { name: 'EBS Volumes', max: 40 },
+                    { name: 'IAM Identities', max: 60 },
+                    { name: 'VPC Networking', max: 80 },
+                    { name: 'Security Groups', max: 95 }
+                ];
 
-                // STEP 2: Actual Fetch
+                let serviceIdx = 0;
+                setScanProgress(0);
+
+                progressInterval = setInterval(() => {
+                    setScanProgress((prev) => {
+                        const currentMilestone = services[serviceIdx].max;
+                        
+                        // If we haven't reached the current service's limit, move 1% at a time
+                        if (prev < currentMilestone) {
+                            return prev + 1;
+                        } 
+                        
+                        // If we reached the milestone, switch to the next service name
+                        if (serviceIdx < services.length - 1) {
+                            serviceIdx++;
+                            setCurrentService(services[serviceIdx].name);
+                        }
+
+                        return prev; // Stay at milestone until timer hits next increment
+                    });
+                }, 150); // Fast enough to feel active, slow enough to look like it's "reading" AWS
+
+                // STEP 2: Actual Scan Request (The Long Poll)
                 const fetchResponse = await fetch('http://localhost:5000/api/fetch-config', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ...scanData, scan_id: currentScanId }),
+                    body: JSON.stringify({ ...scanData, scan_id: scanId }),
                 });
 
-                clearInterval(progressInterval); // Stop the simulator
+                const resultData = await fetchResponse.json();
+                
+                // Stop the simulation immediately when backend returns
+                clearInterval(progressInterval); 
+
+                if (resultData.status === 'cancelled') {
+                    console.log("Scan cancelled by user.");
+                    return;
+                }
 
                 if (fetchResponse.ok) {
+                    // 1. Stop milestone timer
+                    clearInterval(progressInterval); 
+
+                    // 2. Smoothly finish the bar crawl
+                    const smoothFinish = setInterval(() => {
+                        setScanProgress((prev) => {
+                            if (prev >= 100) {
+                                clearInterval(smoothFinish);
+                                return 100;
+                            }
+                            return prev + 1; 
+                        });
+                    }, 25); 
+
                     setCurrentService('Scan Complete!');
-                    setScanProgress(100);
+
+                    // 3. WAIT until the bar is done and the user has seen the 100% state
                     setTimeout(() => {
-                        resetForm();
+                        // 4. CLOSE the modal first
                         setShowScanModal(false);
-                        navigate('/findings');
-                    }, 1000);
+                        
+                        // 5. NAVIGATE immediately after closing
+                        // This ensures the background and sidebar switch 
+                        // only when the modal is out of the way.
+                        setTimeout(() => {
+                            resetForm();
+                            navigate('/findings');
+                        }, 100); // 100ms delay to let the modal "pop" out
+                    }, 2000); 
                 } else {
-                    const fetchError = await fetchResponse.json();
-                    setScanError(fetchError.error || "Failed during scanning.");
+                    setScanError(resultData.error || "Failed during scanning.");
                     setIsScanning(false);
                 }
             } else {
-                setScanError(verifyData.error || "Failed to verify AWS credentials.");
+                setScanError(verifyData.error || "Verification failed.");
             }
         } catch (err) {
-            setScanError("Connection failed. Check server status.");
+            setScanError("Connection failed.");
+            if (progressInterval) clearInterval(progressInterval);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleCancelScan = async () => {
+        try {
+            // Only attempt API call if we have an active scan ID
+            if (currentScanId) {
+                await fetch('http://localhost:5000/api/cancel-scan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ scan_id: currentScanId }),
+                });
+            }
+        } catch (err) {
+            console.error("Backend cancellation failed:", err);
+        } finally {
+            // Always reset UI state regardless of API success
+            setIsScanning(false);
+            setShowScanModal(false);
+            resetForm();
         }
     };
 
@@ -219,7 +290,7 @@ const Dashboard = ({ onLogout, user }) => {
                                 </div>
                             )}
 
-                            {currentPath === '/findings' && <Findings />}
+                            {currentPath === '/findings' && <Findings scanId={currentScanId} user={user} />}
 
                             {currentPath === '/history' && (
                                 <div className="text-center text-slate-400 font-bold p-10">Scan History coming soon...</div>
@@ -383,16 +454,24 @@ const Dashboard = ({ onLogout, user }) => {
                                 {/* Service List Checklist */}
                                 <div className="space-y-4 mb-8">
                                     {['S3', 'EBS', 'IAM', 'VPC', 'EC2'].map((svc, idx) => {
-                                        const isCompleted = scanProgress > (idx + 1) * 20;
-                                        const isCurrent = scanProgress > idx * 20 && scanProgress <= (idx + 1) * 20;
+                                        const milestones = [20, 40, 60, 80, 95];
                                         
+                                        // Fix: If global progress is 100, everything is marked green immediately
+                                        const isCompleted = scanProgress === 100 || scanProgress >= milestones[idx];
+                                        
+                                        // Fix: Only show "Scanning..." pulse if we aren't at 100% yet
+                                        const isCurrent = scanProgress < 100 && (
+                                            idx === 0 ? scanProgress < milestones[0] : 
+                                            (scanProgress >= milestones[idx-1] && scanProgress < milestones[idx])
+                                        );
+
                                         return (
-                                            <div key={svc} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                                            <div key={svc} className={`flex items-center justify-between p-3 rounded-xl border transition-all duration-500 ${
                                                 isCompleted ? 'bg-green-50 border-green-100' : 
                                                 isCurrent ? 'bg-slate-50 border-[#FF9900]/30 shadow-sm' : 'bg-white border-slate-100 opacity-40'
                                             }`}>
                                                 <div className="flex items-center gap-3">
-                                                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
+                                                    <div className={`w-5 h-5 rounded-full flex items-center justify-center transition-colors duration-500 ${
                                                         isCompleted ? 'bg-green-500 text-white' : 'border-2 border-slate-300'
                                                     }`}>
                                                         {isCompleted && (
@@ -401,8 +480,11 @@ const Dashboard = ({ onLogout, user }) => {
                                                             </svg>
                                                         )}
                                                     </div>
-                                                    <span className={`text-[13px] font-bold ${isCompleted ? 'text-green-700' : 'text-slate-700'}`}>{svc} Configurations</span>
+                                                    <span className={`text-[13px] font-bold ${isCompleted ? 'text-green-700' : 'text-slate-700'}`}>
+                                                        {svc} Configurations
+                                                    </span>
                                                 </div>
+                                                {/* Fixed pulse visibility logic */}
                                                 {isCurrent && <span className="text-[10px] font-bold text-[#FF9900] animate-pulse">SCANNING...</span>}
                                             </div>
                                         );
@@ -417,18 +499,14 @@ const Dashboard = ({ onLogout, user }) => {
                                     </div>
                                     <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
                                         <div 
-                                            className="bg-[#FF9900] h-full transition-all duration-700 ease-in-out shadow-[0_0_10px_#FF9900/30]"
+                                            className="bg-green-500 h-full transition-all duration-300 ease-out shadow-[0_0_15px_rgba(34,197,94,0.4)]"
                                             style={{ width: `${scanProgress}%` }}
                                         ></div>
                                     </div>
                                 </div>
 
                                 <button 
-                                    onClick={() => { 
-                                        setIsScanning(false); 
-                                        setShowScanModal(false); 
-                                        resetForm(); 
-                                    }}
+                                    onClick= {handleCancelScan}
                                     className="mt-5 px-10 py-4 bg-slate-50 text-slate-500 font-extrabold text-[13px] uppercase tracking-[0.2em] rounded-2xl border border-slate-200/60 shadow-sm transition-all duration-300 hover:bg-red-50 hover:text-red-600 hover:border-red-200 hover:shadow-md hover:shadow-red-500/10 active:scale-95 disabled:opacity-50"
                                 >
                                     Cancel Scan
