@@ -273,31 +273,41 @@ const Dashboard = ({ onLogout, user }) => {
                 
                 <section className="w-full flex-1 overflow-y-auto pt-2 px-6 pb-6 bg-slate-50/50">
                     <div className="w-full mx-auto flex flex-col h-full">
+                        {/* Title Section remains the same */}
                         <div className="mb-4">
-                            <h1 className="text-[30px] font-black text-slate-900 tracking-tight capitalize">
-                                {activePage.title}
-                            </h1>
-                            <p className="text-[16px] text-slate-500 font-medium mt-1">
-                                {activePage.subtitle}
-                            </p>
+                            <h1 className="text-[30px] font-black text-slate-900 tracking-tight capitalize">{activePage.title}</h1>
+                            <p className="text-[16px] text-slate-500 font-medium mt-1">{activePage.subtitle}</p>
                         </div>
 
-                        <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[500px] p-10 flex-1 overflow-y-auto">
+                        {/* --- DYNAMIC CONTAINER --- */}
+                        <div className="flex-1 w-full h-full pb-6">
+                            {/* DASHBOARD OVERVIEW */}
                             {currentPath === '/dashboard' && (
-                                <div className="flex flex-col items-center justify-center h-full text-center">
+                                <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-220px)] p-10 flex flex-col items-center justify-center text-center">
                                     <h3 className="text-xl font-bold text-slate-700">Security Overview</h3>
                                     <p className="text-slate-500 mt-2">Ready to audit? Click "Scan Now" to detect misconfigurations.</p>
                                 </div>
                             )}
 
+                            {/* FINDINGS PAGE (Now handles its own white box internally) */}
                             {currentPath === '/findings' && <Findings scanId={currentScanId} user={user} />}
 
+                            {/* HISTORY PAGE */}
                             {currentPath === '/history' && (
-                                <div className="text-center text-slate-400 font-bold p-10">Scan History coming soon...</div>
+                                <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-220px)] p-10 flex flex-col items-center justify-center text-center">
+                                    <History size={48} className="text-slate-300 mb-4" />
+                                    <h3 className="text-xl font-bold text-slate-700">Scan History</h3>
+                                    <p className="text-slate-400 mt-2 font-medium">Historical audit logs will appear here shortly.</p>
+                                </div>
                             )}
 
+                            {/* PROFILE PAGE */}
                             {currentPath === '/profile' && (
-                                <div className="text-center text-slate-400 font-bold p-10">User Profile settings coming soon...</div>
+                                <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-220px)] p-10 flex flex-col items-center justify-center text-center">
+                                    <User size={48} className="text-slate-300 mb-4" />
+                                    <h3 className="text-xl font-bold text-slate-700">Account Settings</h3>
+                                    <p className="text-slate-400 mt-2 font-medium">Manage your security profile and preferences here.</p>
+                                </div>
                             )}
                         </div>
                     </div>

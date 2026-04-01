@@ -45,6 +45,7 @@ def get_scan_results(scan_id):
                 "category": item.cnas_category or "N/A",
                 "severity": item.severity or "Medium",
                 "finding": item.misconfig_name or "Misconfiguration",
+                "description": str(item.description) if item.description else "No description available.",
                 "service": item.aws_service or "AWS",
                 "scan_time": item.detected_at.strftime('%Y-%m-%d %H:%M:%S') if item.detected_at else "N/A"
             })
