@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 // Added RefreshCw for the scanning animation
-import { LayoutDashboard, Search, History, User, LogOut, Play, AlertCircle, RefreshCw } from 'lucide-react'; 
+import { LayoutDashboard, Search, History as HistoryIcon, User, LogOut, Play, AlertCircle, RefreshCw } from 'lucide-react'; 
 import logoImg from './assets/cloudsentinel_logo.png';
 import Findings from './Findings'; 
+import History from './History';
 
 const Dashboard = ({ onLogout, user }) => {
     const navigate = useNavigate();
@@ -72,11 +73,19 @@ const Dashboard = ({ onLogout, user }) => {
             return;
         }
 
+        // Move services definition here so it's available for the initial state set
+        const services = [
+            { name: 'S3 Storage', max: 20 },
+            { name: 'EBS Volumes', max: 40 },
+            { name: 'IAM Identities', max: 60 },
+            { name: 'VPC Networking', max: 80 },
+            { name: 'Security Groups', max: 95 }
+        ];
+
         setLoading(true);
         let progressInterval;
 
         try {
-            // STEP 1: Verify Credentials
             const verifyResponse = await fetch('http://localhost:5000/api/verify-aws', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -89,40 +98,26 @@ const Dashboard = ({ onLogout, user }) => {
                 const scanId = verifyData.scan_id;
                 setCurrentScanId(scanId);
                 setLoading(false);
-                setIsScanning(true);
                 
-                // --- AUTHENTIC MILESTONE SIMULATION ---
-                const services = [
-                    { name: 'S3 Storage', max: 20 },
-                    { name: 'EBS Volumes', max: 40 },
-                    { name: 'IAM Identities', max: 60 },
-                    { name: 'VPC Networking', max: 80 },
-                    { name: 'Security Groups', max: 95 }
-                ];
-
-                let serviceIdx = 0;
+                // --- FIX 1: Set initial states before turning on the scanning view ---
                 setScanProgress(0);
-
+                setCurrentService(services[0].name); // Force "S3 Storage" to show immediately
+                setIsScanning(true); 
+                
+                let serviceIdx = 0;
                 progressInterval = setInterval(() => {
                     setScanProgress((prev) => {
                         const currentMilestone = services[serviceIdx].max;
+                        if (prev < currentMilestone) return prev + 1;
                         
-                        // If we haven't reached the current service's limit, move 1% at a time
-                        if (prev < currentMilestone) {
-                            return prev + 1;
-                        } 
-                        
-                        // If we reached the milestone, switch to the next service name
                         if (serviceIdx < services.length - 1) {
                             serviceIdx++;
                             setCurrentService(services[serviceIdx].name);
                         }
-
-                        return prev; // Stay at milestone until timer hits next increment
+                        return prev;
                     });
-                }, 150); // Fast enough to feel active, slow enough to look like it's "reading" AWS
+                }, 150);
 
-                // STEP 2: Actual Scan Request (The Long Poll)
                 const fetchResponse = await fetch('http://localhost:5000/api/fetch-config', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -130,45 +125,28 @@ const Dashboard = ({ onLogout, user }) => {
                 });
 
                 const resultData = await fetchResponse.json();
-                
-                // Stop the simulation immediately when backend returns
                 clearInterval(progressInterval); 
 
-                if (resultData.status === 'cancelled') {
-                    console.log("Scan cancelled by user.");
-                    return;
-                }
-
                 if (fetchResponse.ok) {
-                    // 1. Stop milestone timer
-                    clearInterval(progressInterval); 
-
-                    // 2. Smoothly finish the bar crawl
+                    // --- FIX 2: Smoothly finish and ONLY then set "Complete" ---
                     const smoothFinish = setInterval(() => {
                         setScanProgress((prev) => {
                             if (prev >= 100) {
                                 clearInterval(smoothFinish);
+                                setCurrentService('Scan Complete!'); 
                                 return 100;
                             }
                             return prev + 1; 
                         });
-                    }, 25); 
+                    }, 20); 
 
-                    setCurrentService('Scan Complete!');
-
-                    // 3. WAIT until the bar is done and the user has seen the 100% state
                     setTimeout(() => {
-                        // 4. CLOSE the modal first
                         setShowScanModal(false);
-                        
-                        // 5. NAVIGATE immediately after closing
-                        // This ensures the background and sidebar switch 
-                        // only when the modal is out of the way.
                         setTimeout(() => {
                             resetForm();
                             navigate('/findings');
-                        }, 100); // 100ms delay to let the modal "pop" out
-                    }, 2000); 
+                        }, 100);
+                    }, 2500); // Increased slightly so user sees the 100% "All Green" state
                 } else {
                     setScanError(resultData.error || "Failed during scanning.");
                     setIsScanning(false);
@@ -242,7 +220,7 @@ const Dashboard = ({ onLogout, user }) => {
                 <nav className="flex-1 space-y-3 ">
                     <NavItem icon={<LayoutDashboard size={22} />} label="Dashboard" isActive={currentPath === '/dashboard'} onClick={() => navigate('/dashboard')} />
                     <NavItem icon={<Search size={22} />} label="Findings" isActive={currentPath === '/findings'} onClick={() => navigate('/findings')} />
-                    <NavItem icon={<History size={22} />} label="History" isActive={currentPath === '/history'} onClick={() => navigate('/history')} />
+                    <NavItem icon={<HistoryIcon size={22} />} label="History" isActive={currentPath === '/history'} onClick={() => navigate('/history')} />
                     <NavItem icon={<User size={22} />} label="Profile" isActive={currentPath === '/profile'} onClick={() => navigate('/profile')} />
                 </nav>
             </aside>
@@ -251,7 +229,7 @@ const Dashboard = ({ onLogout, user }) => {
             <main className="w-full flex-1 flex flex-col min-w-0 overflow-hidden">
                 <header className="h-24 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0">
                     <div className="flex flex-col">
-                        <h2 className="text-[30px] font-black text-slate-800 tracking-tight capitalize">AWS Security Monitoring</h2>
+                        <h2 className="text-[30px] font-black text-slate-800 tracking-tight uppercase">AWS Security Monitoring</h2>
                         <p className="text-[15px] text-slate-500 font-bold uppercase tracking-widest">OWASP CNAS Compliance Scanner</p>
                     </div>
 
@@ -271,19 +249,33 @@ const Dashboard = ({ onLogout, user }) => {
                     </div>
                 </header>
                 
-                <section className="w-full flex-1 overflow-y-auto pt-2 px-6 pb-6 bg-slate-50/50">
+                <section className="w-full flex-1 overflow-y-auto pt-2 px-6 bg-slate-50/50">
                     <div className="w-full mx-auto flex flex-col h-full">
-                        {/* Title Section remains the same */}
+                        {/* Title Section */}
                         <div className="mb-4">
-                            <h1 className="text-[30px] font-black text-slate-900 tracking-tight capitalize">{activePage.title}</h1>
-                            <p className="text-[16px] text-slate-500 font-medium mt-1">{activePage.subtitle}</p>
+                            {/* Parent flex container to align the bar with the entire text block */}
+                            <div className="flex items-stretch gap-4 mt-2 mb-1">
+                                {/* The Orange Bar: h-auto with items-stretch ensures it fills the vertical space */}
+                                <div className="w-1.5 bg-[#FF9900] rounded-full shrink-0"></div>
+                                
+                                {/* Container for Title and Subtitle */}
+                                <div className="flex flex-col justify-center">
+                                    <h1 className="text-[25px] font-black text-slate-900 tracking-tight uppercase leading-tight">
+                                        {activePage.title}
+                                    </h1>
+                                    
+                                    <p className="text-[16px] text-slate-500 font-medium leading-normal">
+                                        {activePage.subtitle}
+                                    </p>
+                                </div>
+                            </div>
                         </div>
 
                         {/* --- DYNAMIC CONTAINER --- */}
-                        <div className="flex-1 w-full h-full pb-6">
+                        <div className="flex-1 w-full h-full">
                             {/* DASHBOARD OVERVIEW */}
                             {currentPath === '/dashboard' && (
-                                <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-220px)] p-10 flex flex-col items-center justify-center text-center">
+                                <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-208px)] p-10 flex flex-col items-center justify-center text-center">
                                     <h3 className="text-xl font-bold text-slate-700">Security Overview</h3>
                                     <p className="text-slate-500 mt-2">Ready to audit? Click "Scan Now" to detect misconfigurations.</p>
                                 </div>
@@ -293,13 +285,7 @@ const Dashboard = ({ onLogout, user }) => {
                             {currentPath === '/findings' && <Findings scanId={currentScanId} user={user} />}
 
                             {/* HISTORY PAGE */}
-                            {currentPath === '/history' && (
-                                <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-220px)] p-10 flex flex-col items-center justify-center text-center">
-                                    <History size={48} className="text-slate-300 mb-4" />
-                                    <h3 className="text-xl font-bold text-slate-700">Scan History</h3>
-                                    <p className="text-slate-400 mt-2 font-medium">Historical audit logs will appear here shortly.</p>
-                                </div>
-                            )}
+                            {currentPath === '/history' && <History user={user} />}
 
                             {/* PROFILE PAGE */}
                             {currentPath === '/profile' && (
@@ -466,14 +452,11 @@ const Dashboard = ({ onLogout, user }) => {
                                     {['S3', 'EBS', 'IAM', 'VPC', 'EC2'].map((svc, idx) => {
                                         const milestones = [20, 40, 60, 80, 95];
                                         
-                                        // Fix: If global progress is 100, everything is marked green immediately
-                                        const isCompleted = scanProgress === 100 || scanProgress >= milestones[idx];
+                                        // FIX: Only mark as completed if progress has passed the milestone 
+                                        // OR the currentService explicitly says 'Scan Complete!'
+                                        const isCompleted = scanProgress >= milestones[idx] || currentService === 'Scan Complete!';
                                         
-                                        // Fix: Only show "Scanning..." pulse if we aren't at 100% yet
-                                        const isCurrent = scanProgress < 100 && (
-                                            idx === 0 ? scanProgress < milestones[0] : 
-                                            (scanProgress >= milestones[idx-1] && scanProgress < milestones[idx])
-                                        );
+                                        const isCurrent = currentService.includes(svc) && currentService !== 'Scan Complete!';
 
                                         return (
                                             <div key={svc} className={`flex items-center justify-between p-3 rounded-xl border transition-all duration-500 ${
@@ -526,18 +509,6 @@ const Dashboard = ({ onLogout, user }) => {
                     </div>
                 </div>
             )}
-            {/* --- DEBUG: TEMPO PREVIEW BUTTON --- */}
-            <button 
-                onClick={() => {
-                    setShowScanModal(true);
-                    setIsScanning(true);
-                    setScanProgress(25);
-                    setCurrentService('IAM Identities');
-                }}
-                className="fixed bottom-6 right-6 z-[200] bg-slate-800/80 hover:bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full backdrop-blur-md border border-white/10 shadow-2xl transition-all active:scale-95"
-            >
-                Preview Loading UI
-            </button>
         </div>
     );
 };

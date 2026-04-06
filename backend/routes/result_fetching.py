@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from sqlalchemy import func
 from models import db, Result, ResultItem, Scan
 
 result_fetching_bp = Blueprint('result_fetching', __name__)
@@ -6,36 +7,45 @@ result_fetching_bp = Blueprint('result_fetching', __name__)
 @result_fetching_bp.route('/scan-results/<scan_id>', methods=['GET'])
 def get_scan_results(scan_id):
     try:
-        target_scan_id = scan_id
-        # Get the user_id from the query parameters
         user_id = request.args.get('user_id')
+        target_scan_id = None
 
+        # --- 1. HANDLE "LATEST" LOGIC ---
         if scan_id == "latest":
-            # --- FIX: Filter by user_id so users only see THEIR latest scan ---
-            query = Scan.query
-            if user_id:
-                query = query.filter_by(user_id=user_id)
-            
-            latest_scan = query.order_by(Scan.start_time.desc()).first()
+            if not user_id:
+                return jsonify({"error": "user_id is required to fetch latest scan"}), 400
+
+            # Find the most recent COMPLETED scan for this specific user
+            latest_scan = Scan.query.filter_by(user_id=user_id, scan_status='COMPLETED')\
+                              .order_by(Scan.start_time.desc()).first()
             
             if not latest_scan:
                 return jsonify([]), 200
             
             target_scan_id = latest_scan.scan_id
+        else:
+            # If a specific UUID was passed from History page
+            target_scan_id = scan_id
 
-        # 1. Get Result Header
-        result_header = Result.query.filter_by(scan_id=target_scan_id).first()
+        # --- 2. SECURITY & DATA VALIDATION ---
+        # Fetch the scan object to verify ownership and existence
+        actual_scan = Scan.query.filter_by(scan_id=target_scan_id).first()
         
-        # --- SECURITY CHECK: Ensure this scan actually belongs to the user ---
-        # This prevents User A from manually typing User B's scan_id in the URL
-        actual_scan = Scan.query.get(target_scan_id)
-        if user_id and actual_scan and str(actual_scan.user_id) != str(user_id):
+        if not actual_scan:
+            return jsonify({"error": "Scan record not found"}), 404
+
+        # Security Check: Ensure User A cannot peek at User B's historical UUIDs
+        if user_id and str(actual_scan.user_id).lower() != str(user_id).lower():
             return jsonify({"error": "Unauthorized access to this scan"}), 403
 
+        # --- 3. FETCH RESULT HEADERS AND ITEMS ---
+        # Get the Result header linked to the scan_id
+        result_header = Result.query.filter_by(scan_id=target_scan_id).first()
+        
         if not result_header:
             return jsonify([]), 200
 
-        # 2. Get Items
+        # Get all finding items linked to that Result ID
         findings = ResultItem.query.filter_by(result_id=result_header.result_id).all()
         
         output = []
@@ -53,5 +63,7 @@ def get_scan_results(scan_id):
         return jsonify(output), 200
 
     except Exception as e:
-        print(f"❌ Privacy Error: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        import traceback
+        print(f"❌ Result Fetch Error: {str(e)}")
+        traceback.print_exc()
+        return jsonify({"error": "Internal server error"}), 500
