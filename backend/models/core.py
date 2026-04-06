@@ -1,7 +1,7 @@
 from datetime import datetime
 import uuid
 from . import db
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text
+from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 
 class Scan(db.Model):
@@ -10,7 +10,7 @@ class Scan(db.Model):
     user_id = Column(String(36), ForeignKey('user.user_id'), nullable=False)
     start_time = Column(DateTime, nullable=False)
     end_time = Column(DateTime, nullable=True)
-    duration = Column(Integer, nullable=True)
+    duration = Column(Float, nullable=True)
     scan_status = Column(String(20), default='PENDING')
 
     aws_configs = relationship('AWSConfig', backref='scan', lazy=True)
