@@ -38,7 +38,14 @@ def fetch_config():
 
         s3_client, iam_client, ec2_client = session.client('s3'), session.client('iam'), session.client('ec2')
 
+        # --- KILL SWITCH HELPER ---
+        def is_cancelled():
+            db.session.expire_all() # Refresh cache to see Thread B's changes
+            s = db.session.get(Scan, scan_id)
+            return s.scan_status == 'CANCELLED' if s else False
+        
         # --- 1. S3 SCAN ---
+        if is_cancelled(): return jsonify({"status": "cancelled"}), 200
         print("\n📂 [1/5] Fetching S3 Bucket Configurations...")
         buckets = s3_client.list_buckets().get('Buckets', [])
         for b in buckets:
@@ -65,6 +72,7 @@ def fetch_config():
                 db.session.add(S3Config(config_id=header.config_id, is_public=is_pub, encryption_enabled=has_enc))
 
         # --- 2. EBS SCAN ---
+        if is_cancelled(): return jsonify({"status": "cancelled"}), 200
         print("\n💾 [2/5] Fetching EBS Volume Configurations...")
         volumes = ec2_client.describe_volumes().get('Volumes', [])
         for v in volumes:
@@ -78,6 +86,7 @@ def fetch_config():
                 db.session.add(EBSConfig(config_id=header.config_id, encryption_enabled=is_enc))
 
         # --- 3. IAM SCAN ---
+        if is_cancelled(): return jsonify({"status": "cancelled"}), 200
         print("\n🔐 [3/5] Fetching IAM Identity Configurations...")
         try:
             mfa_devices = iam_client.list_mfa_devices(UserName=iam_user_name).get('MFADevices', [])
@@ -121,6 +130,7 @@ def fetch_config():
                 db.session.add(IAMConfig(config_id=role_header.config_id, permissions=json.dumps(policy_names)))
 
         # --- 4. VPC SCAN ---
+        if is_cancelled(): return jsonify({"status": "cancelled"}), 200
         print("\n🌐 [4/5] Fetching VPC Configurations...")
         vpcs = ec2_client.describe_vpcs().get('Vpcs', [])
         for v in vpcs:
@@ -136,6 +146,7 @@ def fetch_config():
                 db.session.add(VPCConfig(config_id=header.config_id, flow_logs_enabled=(len(logs) > 0)))
 
         # --- 5. SECURITY GROUPS SCAN ---
+        if is_cancelled(): return jsonify({"status": "cancelled"}), 200
         print("\n🛡️ [5/5] Fetching Security Group Rules...")
         sgs = ec2_client.describe_security_groups().get('SecurityGroups', [])
         for sg in sgs:
@@ -153,26 +164,33 @@ def fetch_config():
                 db.session.add(EC2Config(config_id=header.config_id, open_ingress_rules=json.dumps(open_rules)))
 
         db.session.commit()
+
+        if is_cancelled():
+            print(f"🛑 Stopping: Scan {scan_id} was cancelled right before analysis.")
+            return jsonify({"status": "cancelled"}), 200
         
         # --- EXECUTE ANALYSIS AND RETRIEVE TIMING DATA ---
         end_dt, duration_sec = run_analysis(scan_id, target_model=target_tag)
 
-        # --- UPDATE SCAN TABLE STATUS (Crucial for UI) ---
-        scan_record = Scan.query.get(scan_id)
-        if scan_record:
+        # Final check: Don't mark COMPLETED if the analysis_engine rolled back
+        db.session.expire_all()
+        scan_record = db.session.get(Scan, scan_id)
+        if scan_record and scan_record.scan_status != "CANCELLED" and duration_sec > 0:
             scan_record.scan_status = "COMPLETED"
             scan_record.end_time = end_dt
             scan_record.duration = duration_sec
             db.session.commit()
-            print(f"✨ SCAN {scan_id} marked COMPLETED in {duration_sec}s.")
+            print(f"✨ SCAN {scan_id} marked COMPLETED.")
+        else:
+            print(f"⚠️ SCAN {scan_id} was cancelled during analysis. Status remains CANCELLED.")
 
         return jsonify({"status": "success", "scan_id": scan_id}), 200
 
     except Exception as e:
         db.session.rollback()
-        # Ensure status reflects failure in the UI
-        scan_record = Scan.query.get(scan_id)
-        if scan_record:
+        scan_record = db.session.get(Scan, scan_id)
+        # Only set to FAILED if it wasn't manually CANCELLED
+        if scan_record and scan_record.scan_status != 'CANCELLED':
             scan_record.scan_status = "FAILED"
             db.session.commit()
         return jsonify({"error": str(e)}), 500
