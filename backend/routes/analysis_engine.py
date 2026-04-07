@@ -6,12 +6,12 @@ from models import db, Result, ResultItem, PredefinedRule, AWSConfig, S3Config, 
 
 def get_my_time():
     kl_tz = pytz.timezone('Asia/Kuala_Lumpur')
+    # Returns naive datetime for database compatibility
     return datetime.now(kl_tz).replace(tzinfo=None)
 
 def run_analysis(scan_id, target_model="Vuln"):
-    # --- 1. FETCH ACTUAL START TIME FROM SCAN TABLE ---
-    scan_record = Scan.query.get(scan_id)
-    # Measure from the exact moment the scan was initiated
+    # --- 1. FETCH ACTUAL START TIME ---
+    scan_record = db.session.get(Scan, scan_id)
     actual_start_time = scan_record.start_time if scan_record else get_my_time()
     
     print(f"\n{'*'*60}")
@@ -19,7 +19,7 @@ def run_analysis(scan_id, target_model="Vuln"):
     print(f"⏰ PROCESS START TIME: {actual_start_time}")
     print(f"{'*'*60}")
     
-    # Create the Result Header (Analysis Start Time)
+    # Create the Result Header
     analysis_start = get_my_time()
     new_result = Result(scan_id=scan_id, detected_at=analysis_start)
     db.session.add(new_result)
@@ -27,9 +27,9 @@ def run_analysis(scan_id, target_model="Vuln"):
 
     # --- HELPER FUNCTION ---
     def add_finding(config_id, rule_id, resource_name):
-        rule = PredefinedRule.query.get(rule_id)
+        rule = db.session.get(PredefinedRule, rule_id)
         if not rule:
-            print(f"      [!] ERROR: Rule {rule_id} not found in database!")
+            print(f"      [!] ERROR: Rule {rule_id} not found!")
             return
 
         print(f"      [!] ALERT: {rule.rule_name} detected on {resource_name}")
@@ -67,9 +67,8 @@ def run_analysis(scan_id, target_model="Vuln"):
     print("\n📝 [3/4] Analyzing IAM Roles & Identity...")
     iam_data = db.session.query(AWSConfig, IAMConfig).join(IAMConfig).filter(AWSConfig.scan_id == scan_id).all()
     for header, detail in iam_data:
-        if header.resource_type == 'IAM_USER':
-            if not detail.mfa_enabled:
-                add_finding(header.config_id, "RULE-IAM-02", f"IAM User ({header.resource_name})")
+        if header.resource_type == 'IAM_USER' and not detail.mfa_enabled:
+            add_finding(header.config_id, "RULE-IAM-02", f"IAM User ({header.resource_name})")
         elif header.resource_type == 'IAM_ROLE':
             perms = json.loads(detail.permissions) if detail.permissions else []
             if 'AdministratorAccess' in perms:
@@ -92,31 +91,35 @@ def run_analysis(scan_id, target_model="Vuln"):
     sg_data = db.session.query(AWSConfig, EC2Config).join(EC2Config).filter(AWSConfig.scan_id == scan_id).all()
     for header, detail in sg_data:
         rules = json.loads(detail.open_ingress_rules) if detail.open_ingress_rules else []
-        if any("Port:ALL" in rule for rule in rules) or any("Port:22" in rule for rule in rules):
+        if any(r in ["Port:ALL", "Port:22"] for r in rules):
             add_finding(header.config_id, "RULE-SG-01", header.resource_name)
 
-    # --- 6. CAPTURE END TIME & CALCULATE TOTAL DURATION (FLOAT) ---
+    # --- 🚀 KILL SWITCH CHECK ---
+    db.session.expire_all()
+    check_scan = db.session.get(Scan, scan_id)
+    
+    if not check_scan or check_scan.scan_status == 'CANCELLED':
+        db.session.rollback() # Abort saving any findings
+        print(f"🛑 Analysis for {scan_id} aborted: Scan was CANCELLED by user.")
+        return get_my_time(), 0.0
+
+    # --- 6. CAPTURE END TIME & CALCULATE DURATION ---
     end_dt = get_my_time()
     duration_delta = end_dt - actual_start_time
-    
-    # Get raw seconds as float
     total_seconds = duration_delta.total_seconds()
     
-    # Format string for Result table display (2 decimal places)
-    duration_str = f"{total_seconds:.22f}s" if total_seconds < 60 else f"{int(total_seconds // 60)}m {total_seconds % 60:.2f}s"
+    # Clean string for UI display
+    duration_str = f"{total_seconds:.2f}s" if total_seconds < 60 else f"{int(total_seconds // 60)}m {total_seconds % 60:.2f}s"
 
-    # Save details to the Result record
     new_result.completed_at = end_dt
     new_result.duration = duration_str
 
+    # Final commit only if we reached this point
     db.session.commit()
     
     print(f"\n{'='*60}")
     print(f"✅ ANALYSIS COMPLETE.")
-    print(f"⏱️  TOTAL DURATION: {total_seconds:.2f}s")
-    print(f"📅 END TIME: {end_dt}")
+    print(f"⏱️  TOTAL DURATION: {duration_str}")
     print(f"{'='*60}\n")
 
-    # Return values for config_fetching_bp
-    # Round to 2 decimal places for the Float column in the Scan table
     return end_dt, round(total_seconds, 2)

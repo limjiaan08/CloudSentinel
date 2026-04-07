@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 // Added RefreshCw for the scanning animation
 import { LayoutDashboard, Search, History as HistoryIcon, User, LogOut, Play, AlertCircle, RefreshCw } from 'lucide-react'; 
@@ -10,6 +10,7 @@ const Dashboard = ({ onLogout, user }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const currentPath = location.pathname;
+    const isCancelledRef = useRef(false);
 
     // --- STATES ---
     const [showScanModal, setShowScanModal] = useState(false);
@@ -68,12 +69,13 @@ const Dashboard = ({ onLogout, user }) => {
     const handleStartScan = async (e) => {
         e.preventDefault();
         setScanError('');
+        isCancelledRef.current = false; // Reset the kill switch
+
         if (!scanData.accessKey.trim() || !scanData.secretKey.trim() || !scanData.region) {
             setScanError('All fields are required.');
             return;
         }
 
-        // Move services definition here so it's available for the initial state set
         const services = [
             { name: 'S3 Storage', max: 20 },
             { name: 'EBS Volumes', max: 40 },
@@ -94,14 +96,15 @@ const Dashboard = ({ onLogout, user }) => {
 
             const verifyData = await verifyResponse.json();
 
+            // Guard 1: User cancelled during AWS credential verification
+            if (isCancelledRef.current) return;
+
             if (verifyResponse.ok) {
                 const scanId = verifyData.scan_id;
                 setCurrentScanId(scanId);
                 setLoading(false);
-                
-                // --- FIX 1: Set initial states before turning on the scanning view ---
                 setScanProgress(0);
-                setCurrentService(services[0].name); // Force "S3 Storage" to show immediately
+                setCurrentService(services[0].name);
                 setIsScanning(true); 
                 
                 let serviceIdx = 0;
@@ -109,7 +112,6 @@ const Dashboard = ({ onLogout, user }) => {
                     setScanProgress((prev) => {
                         const currentMilestone = services[serviceIdx].max;
                         if (prev < currentMilestone) return prev + 1;
-                        
                         if (serviceIdx < services.length - 1) {
                             serviceIdx++;
                             setCurrentService(services[serviceIdx].name);
@@ -124,11 +126,15 @@ const Dashboard = ({ onLogout, user }) => {
                     body: JSON.stringify({ ...scanData, scan_id: scanId }),
                 });
 
-                const resultData = await fetchResponse.json();
                 clearInterval(progressInterval); 
 
+                // Guard 2: User cancelled while backend was scanning
+                if (isCancelledRef.current) {
+                    console.log("Scan cancelled, aborting frontend navigation.");
+                    return;
+                }
+
                 if (fetchResponse.ok) {
-                    // --- FIX 2: Smoothly finish and ONLY then set "Complete" ---
                     const smoothFinish = setInterval(() => {
                         setScanProgress((prev) => {
                             if (prev >= 100) {
@@ -141,13 +147,15 @@ const Dashboard = ({ onLogout, user }) => {
                     }, 20); 
 
                     setTimeout(() => {
-                        setShowScanModal(false);
-                        setTimeout(() => {
+                        // Guard 3: Final check before moving to results
+                        if (!isCancelledRef.current) {
+                            setShowScanModal(false);
                             resetForm();
                             navigate('/findings');
-                        }, 100);
-                    }, 2500); // Increased slightly so user sees the 100% "All Green" state
+                        }
+                    }, 2500); 
                 } else {
+                    const resultData = await fetchResponse.json();
                     setScanError(resultData.error || "Failed during scanning.");
                     setIsScanning(false);
                 }
@@ -155,29 +163,37 @@ const Dashboard = ({ onLogout, user }) => {
                 setScanError(verifyData.error || "Verification failed.");
             }
         } catch (err) {
-            setScanError("Connection failed.");
+            if (!isCancelledRef.current) {
+                setScanError("Connection failed.");
+            }
             if (progressInterval) clearInterval(progressInterval);
         } finally {
-            setLoading(false);
+            if (!isCancelledRef.current) setLoading(false);
         }
     };
 
     const handleCancelScan = async () => {
+        // 1. Trigger kill switch immediately to stop StartScan logic
+        isCancelledRef.current = true;
+        const idToStop = currentScanId;
+
+        // 2. Hide modal and reset local view state
+        setIsScanning(false);
+        setShowScanModal(false);
+
+        // 3. Backend Sync: Tell Flask to update status to CANCELLED and DELETE data
         try {
-            // Only attempt API call if we have an active scan ID
-            if (currentScanId) {
-                await fetch('http://localhost:5000/api/cancel-scan', {
+            if (idToStop) {
+                await fetch(`http://localhost:5000/api/cancel-scan/${idToStop}`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ scan_id: currentScanId }),
+                    headers: { 'Content-Type': 'application/json' }
                 });
+                console.log("✅ Scan record cancelled and findings purged.");
             }
         } catch (err) {
             console.error("Backend cancellation failed:", err);
         } finally {
-            // Always reset UI state regardless of API success
-            setIsScanning(false);
-            setShowScanModal(false);
+            // 4. Move to history where they see the "CANCELLED" row with 0 findings
             resetForm();
         }
     };
@@ -410,7 +426,7 @@ const Dashboard = ({ onLogout, user }) => {
                                         <button 
                                             type="button" 
                                             onClick={() => { resetForm(); setShowScanModal(false); }}
-                                            className="flex-1 bg-slate-100 text-slate-600 font-bold py-4 rounded-2xl transition-all shadow-lg active:scale-95 disabled:opacity-50 hover:bg-slate-200"
+                                            className="flex-1 bg-slate-100 text-slate-600 font-extrabold py-4 rounded-2xl transition-all shadow-lg active:scale-95 disabled:opacity-50 hover:bg-slate-200"
                                         >
                                             Cancel
                                         </button>

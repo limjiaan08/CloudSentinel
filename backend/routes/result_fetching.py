@@ -27,6 +27,10 @@ def get_scan_results(scan_id):
             # If a specific UUID was passed from History page
             target_scan_id = scan_id
 
+        scan_meta = Scan.query.get(target_scan_id)
+        if not scan_meta or scan_meta.scan_status != 'COMPLETED':
+            return jsonify([]), 200 # Return empty list so React shows "No Entry"
+
         # --- 2. SECURITY & DATA VALIDATION ---
         # Fetch the scan object to verify ownership and existence
         actual_scan = Scan.query.filter_by(scan_id=target_scan_id).first()

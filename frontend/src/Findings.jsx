@@ -191,7 +191,7 @@ const Findings = ({ scanId: propScanId, user }) => {
         
         <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
           <table className="w-full border-collapse table-fixed"> 
-            <thead className="bg-slate-50 border-b border-slate-100">
+            <thead className="bg-slate-100 border-b border-slate-100">
               <tr className="text-slate-700">
                 <th className="px-8 py-5 w-[15%] text-center text-[15px] font-black uppercase tracking-widest">Category</th>
                 <th className="px-8 py-5 w-[15%] text-center text-[15px] font-black uppercase tracking-widest">Severity</th>
@@ -200,7 +200,7 @@ const Findings = ({ scanId: propScanId, user }) => {
                 <th className="px-8 py-5 w-[17%] text-center text-[15px] font-black uppercase tracking-widest">Timestamp</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-300">
               {filteredData.length > 0 ? filteredData.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-50/50 transition-all duration-200 group">
                   <td className="px-8 py-7 text-[17px] font-extrabold text-slate-900 text-center">{item.category}</td>
