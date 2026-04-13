@@ -1,15 +1,121 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom'; // 1. Import useNavigate
-/* 1. IMPORT YOUR IMAGE FROM ASSETS */
+import { useNavigate } from 'react-router-dom';
 import logoImg from './assets/cloudsentinel_logo.png'; 
+import { Mail, AlertCircle, CheckCircle2, X } from 'lucide-react';
 
-function SignIn({ onLoginSuccess }) { // Receive the success handler from App.jsx
+/* --- FORGOT PASSWORD MODAL COMPONENT --- */
+const ForgotPasswordModal = ({ isOpen, onClose }) => {
+  const [email, setEmail] = useState('');
+  const [status, setStatus] = useState({ type: '', msg: '' });
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setStatus({ type: '', msg: '' });
+
+    try {
+      const response = await fetch('http://localhost:5000/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        // We set the success message and leave the modal open
+        setStatus({ type: 'success', msg: data.message });
+        setEmail(''); // Clear input
+        // --- REMOVED THE SETTIMEOUT HERE ---
+      } else {
+        setStatus({ type: 'error', msg: data.error || "Email not found." });
+      }
+    } catch (err) {
+      setStatus({ type: 'error', msg: "Connection failed. Try again later." });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClose = () => {
+    setStatus({ type: '', msg: '' }); // Clear the "Got it thanks" state
+    setEmail('');
+    onClose(); // Call the original close function from props
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-[#252F3E]/80 backdrop-blur-sm p-6">
+      <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl p-8 animate-in zoom-in-95 duration-200 relative">
+        <button onClick={handleClose} className="absolute right-6 top-6 text-slate-400 hover:text-slate-600 transition-colors">
+          <X size={24} />
+        </button>
+
+        <div className="text-center mb-6">
+          <div className="bg-orange-50 w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-orange-100">
+            <Mail className="text-[#FF9900]" size={40} />
+          </div>
+          <h2 className="text-[30px] font-bold text-slate-900">Forgot Password?</h2>
+          <p className="text-[18px] font-normal text-slate-500 mt-2 leading-relaxed px-4">
+            Enter your registered email address and we'll send a secure reset link.
+          </p>
+        </div>
+
+        {status.msg && (
+          <div className={`mb-6 p-4 rounded-2xl flex items-start gap-3 border ${
+            status.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'
+          }`}>
+            {status.type === 'success' ? <CheckCircle2 size={18} className="mt-0.5 shrink-0" /> : <AlertCircle size={18} className="mt-0.5 shrink-0" />}
+            <p className="text-[14px] font-semibold leading-tight">{status.msg}</p>
+          </div>
+        )}
+
+        {/* Conditional Rendering: Hide form on success */}
+        {status.type !== 'success' ? (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1 pb-4">
+              <label className="text-[16px] font-semibold text-slate-700 ml-1">Email address</label>
+              <input 
+                type="email" 
+                required
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 px-5 outline-none focus:ring-2 focus:ring-[#FF9900] transition-all text-slate-800"
+                placeholder="Enter your email address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+
+            <button 
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[#FF9900] text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-[#D17D00] transition-all disabled:opacity-50 mt-2"
+            >
+              {loading ? "Sending..." : "Send Reset Link"}
+            </button>
+          </form>
+        ) : (
+          <button 
+            onClick={handleClose}
+            className="w-full bg-[#FF9900] text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-[#D17D00] transition-all mt-2"
+          >
+            Got it, thanks!
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* --- MAIN SIGN IN COMPONENT --- */
+function SignIn({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', isError: false });
+  const [isForgotModalOpen, setIsForgotModalOpen] = useState(false); // New state
 
-  const navigate = useNavigate(); // 2. Initialize the hook
+  const navigate = useNavigate();
 
   const handleSignIn = async (e) => {
     e.preventDefault();
@@ -20,28 +126,21 @@ function SignIn({ onLoginSuccess }) { // Receive the success handler from App.js
       const response = await fetch('http://localhost:5000/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: email,
-          password: password
-        }),
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
         setMessage({ text: `Welcome back, ${data.user_name}!`, isError: false });
-        
-        // Save session info to localStorage so logout can find it
         localStorage.setItem('session_id', data.session_id);
         localStorage.setItem('user_name', data.user_name);
-        localStorage.setItem('user_id', data.user_id)
+        localStorage.setItem('user_id', data.user_id);
 
-        // 3. Update App state and move to dashboard
         setTimeout(() => {
-          onLoginSuccess(data); // This updates the 'user' state in App.jsx
-          navigate('/dashboard'); // This physically changes the URL
+          onLoginSuccess(data);
+          navigate('/dashboard');
         }, 1000);
-
       } else {
         setMessage({ text: data.error || "Login failed", isError: true });
       }
@@ -54,15 +153,9 @@ function SignIn({ onLoginSuccess }) { // Receive the success handler from App.js
 
   return (
     <div className="min-h-screen w-full bg-[#252F3E] flex flex-col items-center justify-center pt-12 p-6 font-sans overflow-y-auto">
-      
       <div className="bg-white w-full max-w-[450px] rounded-[3rem] shadow-2xl p-8 flex flex-col items-center">
-        
         <div className="w-full flex justify-center mb-0">
-          <img 
-            src={logoImg} 
-            alt="CloudSentinel Logo" 
-            className="w-full max-w-[250px] h-auto object-contain" 
-          />
+          <img src={logoImg} alt="CloudSentinel Logo" className="w-full max-w-[250px] h-auto object-contain" />
         </div>
 
         <h1 className="text-[50px] font-bold tracking-tight mt-4 flex gap-1">
@@ -82,7 +175,7 @@ function SignIn({ onLoginSuccess }) { // Receive the success handler from App.js
             <label className="text-[18px] font-semibold text-slate-700 ml-1">Email address</label>
             <input 
               type="email" 
-              className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-5 outline-none focus:ring-2 focus:ring-[#FF9900] transition-all text-[18px] text-slate-800 placeholder:text-slate-400"
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-5 outline-none focus:ring-2 focus:ring-[#FF9900] transition-all text-[18px] text-slate-800 placeholder:text-slate-400"
               placeholder="Enter your email address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -91,10 +184,20 @@ function SignIn({ onLoginSuccess }) { // Receive the success handler from App.js
           </div>
 
           <div className="space-y-1">
-            <label className="text-[18px] font-semibold text-slate-700 ml-1">Password</label>
+            <div className="flex justify-between items-center px-1">
+              <label className="text-[18px] font-semibold text-slate-700">Password</label>
+              {/* FORGOT PASSWORD TRIGGER */}
+              <button 
+                type="button"
+                onClick={() => setIsForgotModalOpen(true)}
+                className="text-[#FF9900] text-[15px] font-bold cursor-pointer hover:text-[#D17D00]"
+              >
+                Forgot Password?
+              </button>
+            </div>
             <input 
               type="password" 
-              className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-5 outline-none focus:ring-2 focus:ring-[#FF9900] transition-all text-[18px] text-slate-800"
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-5 outline-none focus:ring-2 focus:ring-[#FF9900] transition-all text-[18px] text-slate-800"
               placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -105,16 +208,16 @@ function SignIn({ onLoginSuccess }) { // Receive the success handler from App.js
           <button 
             type="submit"
             disabled={loading}
-            className="w-full bg-[#FF9900] hover:bg-[#D17D00] text-white font-bold py-4 rounded-2xl shadow-lg transition-all active:scale-[0.98] mt-2">
+            className="w-full bg-[#FF9900] hover:bg-[#D17D00] text-white font-bold py-4 rounded-2xl shadow-lg transition-all active:scale-[0.98]">
             {loading ? "Authenticating..." : "Sign In"}
           </button>
         </form>
 
-        <p className="mt-8 text-[16px] text-slate-600">
+        <p className="mt-4 text-[16px] text-slate-600">
           Don't have an account?{' '}
           <span 
-            onClick={() => navigate('/signup')} // Use navigate for Signup too
-            className="text-[#FF9900] font-bold cursor-pointer transition-colors duration-200 hover:text-[#D17D00]">
+            onClick={() => navigate('/signup')} 
+            className="text-[#FF9900] font-bold cursor-pointer hover:text-[#D17D00]">
             Sign Up
           </span>
         </p>
@@ -125,6 +228,12 @@ function SignIn({ onLoginSuccess }) { // Receive the success handler from App.js
           Secure AWS misconfiguration detection
         </p>
       </div>
+
+      {/* RENDER THE MODAL */}
+      <ForgotPasswordModal 
+        isOpen={isForgotModalOpen} 
+        onClose={() => setIsForgotModalOpen(false)} 
+      />
     </div>
   );
 }

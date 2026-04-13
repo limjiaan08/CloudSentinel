@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import SignIn from './SignIn'; 
 import SignUp from './SignUp';
 import Dashboard from './Dashboard';
+import ResetPassword from './ResetPassword';
 
 function App() {
   const [user, setUser] = useState(() => {
@@ -53,6 +54,8 @@ function App() {
           path="/signin" 
           element={<SignIn onLoginSuccess={(data) => setUser(data)} />} 
         />
+
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
 
         {/* 3. SIGN UP */}
         <Route path="/signup" element={<SignUp />} />

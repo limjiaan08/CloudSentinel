@@ -127,7 +127,7 @@ const History = ({ user }) => {
                                         <th className="py-5 w-[10%] text-center text-[15px] font-black uppercase tracking-widest">Action</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-300">
+                                <tbody className="divide-y divide-slate-200">
                                     {sortedScans.map((scan) => (
                                         <tr key={scan.scan_id} className="hover:bg-slate-50/50 transition-all duration-200 group">
                                             <td className="py-7 text-center text-[17px] font-extrabold text-slate-800 uppercase">
