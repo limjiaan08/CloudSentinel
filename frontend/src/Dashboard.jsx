@@ -245,7 +245,7 @@ const Dashboard = ({ onLogout, user }) => {
             <main className="w-full flex-1 flex flex-col min-w-0 overflow-hidden">
                 <header className="h-24 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0">
                     <div className="flex flex-col">
-                        <h2 className="text-[30px] font-black text-slate-800 tracking-tight uppercase">AWS Security Monitoring</h2>
+                        <h2 className="text-[26px] font-extrabold text-slate-800 uppercase">AWS Security Monitoring</h2>
                         <p className="text-[15px] text-slate-500 font-bold uppercase tracking-widest">OWASP CNAS Compliance Scanner</p>
                     </div>
 
@@ -276,11 +276,11 @@ const Dashboard = ({ onLogout, user }) => {
                                 
                                 {/* Container for Title and Subtitle */}
                                 <div className="flex flex-col justify-center">
-                                    <h1 className="text-[25px] font-black text-slate-900 tracking-tight uppercase leading-tight">
+                                    <h1 className="text-[27px] font-bold text-slate-900 leading-tight">
                                         {activePage.title}
                                     </h1>
                                     
-                                    <p className="text-[16px] text-slate-500 font-medium leading-normal">
+                                    <p className="text-[17px] text-slate-500 font-medium leading-normal">
                                         {activePage.subtitle}
                                     </p>
                                 </div>

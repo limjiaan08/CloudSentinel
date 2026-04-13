@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom'; // Added for navigation state
-import { ShieldCheck, Loader2, Filter as FilterIcon, ChevronDown, Clock, Search, ArrowLeft, HistoryIcon } from 'lucide-react';
+import { AlertCircle, ShieldCheck, Loader2, Filter as FilterIcon, ChevronDown, Clock, Search, ArrowLeft, HistoryIcon } from 'lucide-react';
 import axios from 'axios';
 
 const Findings = ({ scanId: propScanId, user }) => { 
@@ -38,32 +38,57 @@ const Findings = ({ scanId: propScanId, user }) => {
     if (user || localStorage.getItem('user')) fetchFindings();
   }, [targetScanId, user]); // Refetch if targetScanId changes
 
-  const filteredData = findings.filter(item => {
-    const categoryMatch = filterCategory === 'All' || item.category === filterCategory;
-    const severityMatch = filterSeverity === 'All' || item.severity === filterSeverity;
-    return categoryMatch && severityMatch;
-  });
+const filteredData = findings.filter(item => {
+  const categoryMatch = filterCategory === 'All' || item.category === filterCategory;
+  const severityMatch = filterSeverity === 'All' || item.severity === filterSeverity;
+  return categoryMatch && severityMatch;
+});
 
-  const getSeverityStyle = (sev) => {
-    switch (sev?.toLowerCase()) {
-      case 'high': return 'bg-red-500 text-white border-red-100';
-      case 'medium': return 'bg-yellow-500 text-white border-yellow-100';
-      case 'low': return 'bg-blue-500 text-white border-blue-100';
-      default: return 'bg-slate-50 text-slate-600 border-slate-100';
+const getSeverityStyle = (sev) => {
+    switch (sev?.toUpperCase()) {
+      case 'HIGH': 
+        return {
+          container: 'bg-red-50 border-red-200 text-red-700 shadow-sm shadow-red-100',
+          dot: 'bg-red-500 animate-pulse'
+        };
+      case 'MEDIUM': 
+        return {
+          container: 'bg-amber-50 border-amber-200 text-amber-700 shadow-sm shadow-amber-100',
+          dot: 'bg-amber-500'
+        };
+      case 'LOW': 
+        return {
+          container: 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm shadow-emerald-100',
+          dot: 'bg-emerald-500'
+        };
+      default: 
+        return {
+          container: 'bg-slate-50 border-slate-200 text-slate-600',
+          dot: 'bg-slate-400'
+        };
     }
-  };
+};
+
+const getServiceStyle = (service) => {
+    const s = service?.toUpperCase();
+    if (s?.includes('S3')) return 'bg-[#FF9900]/10 border border-[#FF9900]/20 px-3 py-1 rounded-[1.5rem] text-[#FF9900]';
+    if (s?.includes('IAM')) return 'bg-[#FF9900]/10 border border-[#FF9900]/20 px-3 py-1 rounded-[1.5rem] text-[#FF9900]';
+    if (s?.includes('VPC')) return 'bg-[#FF9900]/10 border border-[#FF9900]/20 px-3 py-1 rounded-[1.5rem] text-[#FF9900]';
+    if (s?.includes('EC2')) return 'bg-[#FF9900]/10 border border-[#FF9900]/20 px-3 py-1 rounded-[1.5rem] text-[#FF9900]';
+    if (s?.includes('EBS')) return 'bg-[#FF9900]/10 border border-[#FF9900]/20 px-3 py-1 rounded-[1.5rem] text-[#FF9900]';
+    return 'bg-slate-50 border-slate-100 text-slate-700';
+};
 
   // --- 1. LOADING STATE ---
-  if (loading) {
-    return (
-      <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-208px)] p-20 flex flex-col items-center justify-center animate-in fade-in duration-300">
-        <Loader2 className="animate-spin text-[#FF9900] mb-4" size={48} />
-        <p className="text-slate-500 font-bold text-lg uppercase tracking-widest">Analyzing AWS Infrastructure...</p>
-      </div>
-    );
-  }
+if (loading) {
+  return (
+    <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-208px)] p-20 flex flex-col items-center justify-center animate-in fade-in duration-300">
+      <Loader2 className="animate-spin text-[#FF9900] mb-4" size={48} />
+      <p className="text-slate-500 font-bold text-lg uppercase tracking-widest">Analyzing AWS Infrastructure...</p>      </div>
+  );
+}
 
-  // --- 2. NO SCAN ENTRY ---
+// --- 2. NO SCAN ENTRY ---
   if (targetScanId === "latest" && findings.length === 0) {
     return (
       <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-208px)] p-10 flex flex-col items-center justify-center text-center">
@@ -105,11 +130,11 @@ const Findings = ({ scanId: propScanId, user }) => {
 
   // --- 4. RESULTS VIEW ---
   return (
-    <div className="flex flex-col gap-8 pb-6">
+    <div className="flex flex-col gap-5 pb-6">
       
       {/* --- NEW: HISTORICAL VIEW BANNER --- */}
       {passedScanId && (
-        <div className="bg-[#252F3E] rounded-2xl p-4 px-6 flex items-center justify-between shadow-lg animate-in slide-in-from-top-4 duration-500">
+        <div className="bg-[#252F3E]/95 rounded-2xl p-4 px-6 flex items-center justify-between shadow-lg animate-in slide-in-from-top-4 duration-500">
           <div className="flex items-center gap-4 text-white">
             <div className="bg-[#FF9900] p-2 rounded-lg text-white">
                 <HistoryIcon size={20} />
@@ -129,20 +154,20 @@ const Findings = ({ scanId: propScanId, user }) => {
       )}
 
       {/* --- FILTER TOOLBAR --- */}
-      <div className="bg-white border border-slate-200 rounded-2xl px-6 py-4 shadow-sm flex items-center justify-between">
+      <div className="bg-white border border-slate-200 rounded-2xl pl-6 px-4 py-4 shadow-sm flex items-center justify-between">
         <div className="flex items-center gap-4 border-r border-slate-100 pr-8">
           <div className="bg-orange-50 p-2.5 rounded-xl">
             <FilterIcon size={20} className="text-[#FF9900]" />
           </div>
           <div>
-            <h4 className="text-[18px] font-black text-slate-900 leading-none uppercase">Findings Filters</h4>
+            <h4 className="text-[18px] font-bold text-slate-900 leading-none">Findings Filters</h4>
           </div>
         </div>
 
         <div className="flex items-center gap-7 flex-1 justify-end pl-8">
           <div className="relative group min-w-[220px]">
             <select 
-              className="appearance-none w-full text-[14px] font-bold text-slate-600 bg-slate-50/50 border border-slate-200 rounded-xl pl-5 pr-12 py-3 outline-none hover:bg-white hover:border-[#FF9900]/30 transition-all cursor-pointer"
+              className="appearance-none w-full text-[14px] font-semibold text-slate-600 bg-slate-50/50 border border-slate-200 rounded-xl pl-5 pr-12 py-3 outline-none hover:bg-white hover:border-[#FF9900]/30 transition-all cursor-pointer"
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value)}
             >
@@ -156,7 +181,7 @@ const Findings = ({ scanId: propScanId, user }) => {
 
           <div className="relative group min-w-[180px]">
             <select 
-              className="appearance-none w-full text-[14px] font-bold text-slate-600 bg-slate-50/50 border border-slate-200 rounded-xl pl-5 pr-12 py-3 outline-none hover:bg-white hover:border-[#FF9900]/30 transition-all cursor-pointer"
+              className="appearance-none w-full text-[14px] font-semibold text-slate-600 bg-slate-50/50 border border-slate-200 rounded-xl pl-5 pr-12 py-3 outline-none hover:bg-white hover:border-[#FF9900]/30 transition-all cursor-pointer"
               value={filterSeverity}
               onChange={(e) => setFilterSeverity(e.target.value)}
             >
@@ -172,19 +197,49 @@ const Findings = ({ scanId: propScanId, user }) => {
 
       {/* --- AUDIT ANALYSIS HEADER --- */}
       <div className="flex flex-col gap-4">
-        <div className="px-2">
-          
-          <div className="flex items-center justify-between ml-4">
-            <div className="flex items-center gap-2">
-              <Clock size={18} className="text-slate-400" />
-              <span className="text-[14px] font-extrabold text-slate-700 uppercase tracking-widest">Results Detected:</span>
-              <span className="text-[14px] font-extrabold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg border border-indigo-100">
-                {findings.length > 0 ? findings[0].scan_time : "Processing..."}
-              </span>
+        <div className="mb-2">
+          <div className="flex items-center justify-between">
+            {/* Left Side: Audit Metadata */}
+            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 px-4 py-2.5 rounded-2xl shadow-sm">
+              <Clock size={20} className="text-slate-700" />
+              
+              {/* Changed to flex-row and items-center to put them side-by-side */}
+              <div className="flex items-center gap-3">
+                <span className="text-[13px] font-extrabold text-slate-700 uppercase tracking-[0.15em] leading-none">
+                  Analysis Completed
+                </span>
+
+                {/* Subtle Vertical Divider to match the date styling */}
+                <div className="w-[1px] h-5 bg-[#252F3E]/10"></div>
+
+                <div className="flex items-center pl-1">
+                  <div className="bg-[#252F3E] text-white px-4 h-[34px] flex items-center justify-center rounded-xl font-bold text-[13px] shadow-md shadow-slate-200 whitespace-nowrap">
+                    {findings.length > 0 && findings[0]?.scan_time 
+                      ? findings[0].scan_time 
+                      : "Initializing..."}
+                  </div>
+                </div>
+              </div>
             </div>
+          </div>
             
-            <div className="bg-red-500 text-white text-[14px] font-black px-4 py-1 rounded-lg shadow-lg shadow-red-500/10 uppercase tracking-widest">
-              {filteredData.length} Total Risks
+            {/* Right Side: Risk Counter */}
+            <div className="flex items-center gap-3 bg-white border border-red-100 pl-4 pr-1.5 py-1.5 rounded-2xl shadow-sm">
+              {/* Added AlertCircle Icon */}
+     
+              <AlertCircle size={20} className="text-red-500" />
+      
+              <span className="text-[12px] font-black text-red-500 uppercase tracking-[0.1em]">
+                Threats Detected
+              </span>
+
+              {/* Subtle Vertical Divider to match the date styling */}
+              <div className="w-[1px] h-5 bg-red-100"></div>
+
+              <div className="bg-red-500 text-white min-w-[44px] h-[34px] ml-1 px-3 flex items-center justify-center rounded-xl font-black text-[16px] shadow-md shadow-red-200">
+                {filteredData.length}
+              </div>
             </div>
           </div>
         </div>
@@ -192,34 +247,47 @@ const Findings = ({ scanId: propScanId, user }) => {
         <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
           <table className="w-full border-collapse table-fixed"> 
             <thead className="bg-slate-100 border-b border-slate-100">
-              <tr className="text-slate-700">
-                <th className="px-8 py-5 w-[15%] text-center text-[15px] font-black uppercase tracking-widest">Category</th>
-                <th className="px-8 py-5 w-[15%] text-center text-[15px] font-black uppercase tracking-widest">Severity</th>
-                <th className="px-8 py-5 w-[38%] text-left text-[15px] font-black uppercase tracking-widest">Finding Detail</th>
-                <th className="px-8 py-5 w-[15%] text-center text-[15px] font-black uppercase tracking-widest">Service</th>
-                <th className="px-8 py-5 w-[17%] text-center text-[15px] font-black uppercase tracking-widest">Timestamp</th>
+              <tr className="text-slate-600">
+                <th className="px-8 py-5 w-[15%] text-center text-[15px] font-bold uppercase">Category</th>
+                <th className="px-8 py-5 w-[15%] text-center text-[15px] font-bold uppercase">Severity</th>
+                <th className="px-8 py-5 w-[38%] text-left text-[15px] font-bold uppercase">Finding Detail</th>
+                <th className="px-8 py-5 w-[15%] text-center text-[15px] font-bold uppercase">Service</th>
+                <th className="px-8 py-5 w-[17%] text-center text-[15px] font-bold uppercase">Timestamp</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-300">
+            <tbody className="divide-y divide-slate-200">
               {filteredData.length > 0 ? filteredData.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-50/50 transition-all duration-200 group">
-                  <td className="px-8 py-7 text-[17px] font-extrabold text-slate-900 text-center">{item.category}</td>
-                  <td className="px-8 py-7 text-center">
-                    <span className={`${getSeverityStyle(item.severity)} border text-[15px] font-extrabold px-4 py-1.5 rounded-lg uppercase tracking-tighter inline-block`}>
-                      {item.severity}
-                    </span>
+                  <td className="px-8 py-7 text-[17px] font-bold text-slate-900 text-center">{item.category}</td>
+                  <td className="px-8 py-8 text-center">
+                    {(() => {
+                      const style = getSeverityStyle(item.severity);
+                      return (
+                        <div className={`inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border ${style.container} transition-all duration-300`}>
+                          <div className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
+                          {/* The Text Label */}
+                          <span className="text-[12px] font-black uppercase tracking-[0.15em]">
+                            {item.severity}
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-8 py-7 text-left">
                     <div className="flex flex-col gap-1.5">
-                      <span className="font-extrabold text-slate-900 text-[17px] leading-none group-hover:text-[#FF9900] transition-colors">
+                      <span className="font-bold text-slate-900 text-[17px] leading-none group-hover:text-[#FF9900] transition-colors">
                         {item.finding}
                       </span>
-                      <span className="text-[15px] text-slate-500 font-bold leading-relaxed italic">
+                      <span className="text-[15px] text-slate-500 font-semibold leading-relaxed italic">
                         {item.description}
                       </span>
                     </div>
                   </td>
-                  <td className="px-8 py-7 font-black text-slate-900 text-[17px] text-center group-hover:text-[#FF9900] transition-colors">{item.service}</td>
+                  <td className="px-8 py-7 text-center">
+                    <span className={`inline-block px-3 py-1 rounded-md border text-[13px] font-black uppercase tracking-wider ${getServiceStyle(item.service)} shadow-sm transition-transform duration-200 group-hover:scale-105`}>
+                      {item.service}
+                    </span>
+                  </td>
                   <td className="px-8 py-7 text-slate-700 text-[15px] font-bold text-center tracking-tight uppercase">
                     {item.scan_time}
                   </td>

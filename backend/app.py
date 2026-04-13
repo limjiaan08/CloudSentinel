@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 import os
 from flask_cors import CORS
 from models import db
-from routes.auth import auth_bp
+from routes.auth import auth_bp, mail # mail is imported from auth.py
 from routes.connection import connection_bp
 from routes.config_fetching import config_fetching_bp
 from routes.result_fetching import result_fetching_bp
@@ -13,13 +13,28 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# --- FIX: Detailed CORS Configuration ---
+# --- NEW: SECURITY CONFIG ---
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-key-123')
+
+# --- NEW: MAIL CONFIGURATION ---
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER')
+
+# Initialize Mail with App
+mail.init_app(app)
+
+# --- CORS Configuration ---
 CORS(app, resources={r"/*": {
     "origins": "http://localhost:5173",
     "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     "allow_headers": ["Content-Type", "Authorization"]
 }})
 
+# Database Configuration
 db_user = os.getenv('DB_USER', 'root')
 db_password = os.getenv('DB_PASSWORD', '')
 db_host = os.getenv('DB_HOST', 'localhost')
