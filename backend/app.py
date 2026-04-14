@@ -14,7 +14,7 @@ load_dotenv()
 app = Flask(__name__)
 
 # --- NEW: SECURITY CONFIG ---
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-key-123')
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 
 # --- NEW: MAIL CONFIGURATION ---
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
