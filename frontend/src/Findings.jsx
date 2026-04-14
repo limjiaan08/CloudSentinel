@@ -134,14 +134,14 @@ if (loading) {
       
       {/* --- NEW: HISTORICAL VIEW BANNER --- */}
       {passedScanId && (
-        <div className="bg-[#252F3E]/95 rounded-2xl p-4 px-6 flex items-center justify-between shadow-lg animate-in slide-in-from-top-4 duration-500">
+        <div className="bg-[#252F3E] rounded-2xl p-4 px-6 flex items-center justify-between shadow-lg animate-in slide-in-from-top-4 duration-500">
           <div className="flex items-center gap-4 text-white">
             <div className="bg-[#FF9900] p-2 rounded-lg text-white">
                 <HistoryIcon size={20} />
             </div>
             <div>
               <p className="text-[12px] font-black uppercase tracking-[0.2em] text-[#FF9900]">Archive Report</p>
-              <h4 className="text-[15px] font-bold text-white">Reviewing scan: <span className="font-mono text-white/70">{passedScanId}</span></h4>
+              <h4 className="text-[14px] font-bold text-white">Reviewing scan: <span className="font-mono text-white/70">{passedScanId}</span></h4>
             </div>
           </div>
           <button 
@@ -160,7 +160,7 @@ if (loading) {
             <FilterIcon size={20} className="text-[#FF9900]" />
           </div>
           <div>
-            <h4 className="text-[18px] font-bold text-slate-900 leading-none">Findings Filters</h4>
+            <h4 className="text-[16px] font-extrabold text-slate-700 tracking-wide uppercase leading-none">Findings Filters</h4>
           </div>
         </div>
 
@@ -214,7 +214,7 @@ if (loading) {
                 <div className="w-[1px] h-5 bg-[#252F3E]/10"></div>
 
                 <div className="flex items-center pl-1">
-                  <div className="bg-[#252F3E] text-white px-4 h-[34px] flex items-center justify-center rounded-xl font-bold text-[13px] shadow-md shadow-slate-200 whitespace-nowrap">
+                  <div className="bg-[#252F3E]/95 text-white px-4 h-[34px] flex items-center justify-center rounded-xl font-bold text-[13px] shadow-md shadow-slate-200 whitespace-nowrap">
                     {findings.length > 0 && findings[0]?.scan_time 
                       ? findings[0].scan_time 
                       : "Initializing..."}
@@ -247,12 +247,32 @@ if (loading) {
         <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
           <table className="w-full border-collapse table-fixed"> 
             <thead className="bg-slate-100 border-b border-slate-100">
-              <tr className="text-slate-600">
-                <th className="px-8 py-5 w-[15%] text-center text-[15px] font-bold uppercase">Category</th>
-                <th className="px-8 py-5 w-[15%] text-center text-[15px] font-bold uppercase">Severity</th>
-                <th className="px-8 py-5 w-[38%] text-left text-[15px] font-bold uppercase">Finding Detail</th>
-                <th className="px-8 py-5 w-[15%] text-center text-[15px] font-bold uppercase">Service</th>
-                <th className="px-8 py-5 w-[17%] text-center text-[15px] font-bold uppercase">Timestamp</th>
+              <tr className="bg-slate-50/80 border-b border-slate-200">
+                <th className="px-6 py-4 w-[15%] text-center">
+                  <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">
+                    Category
+                  </span>
+                </th>
+                <th className="px-6 py-4 w-[15%] text-center">
+                  <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">
+                    Severity
+                  </span>
+                </th>
+                <th className="px-6 py-4 w-[38%] text-left">
+                  <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">
+                    Finding Detail
+                  </span>
+                </th>
+                <th className="px-6 py-4 w-[15%] text-center">
+                  <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">
+                    Service
+                  </span>
+                </th>
+                <th className="px-6 py-4 w-[17%] text-center">
+                  <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">
+                    Timestamp
+                  </span>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -266,7 +286,7 @@ if (loading) {
                         <div className={`inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border ${style.container} transition-all duration-300`}>
                           <div className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
                           {/* The Text Label */}
-                          <span className="text-[12px] font-black uppercase tracking-[0.15em]">
+                          <span className="text-[13px] font-black uppercase tracking-[0.15em]">
                             {item.severity}
                           </span>
                         </div>
@@ -288,7 +308,7 @@ if (loading) {
                       {item.service}
                     </span>
                   </td>
-                  <td className="px-8 py-7 text-slate-700 text-[15px] font-bold text-center tracking-tight uppercase">
+                  <td className="px-8 py-7 text-slate-700 text-[14px] font-bold text-center tracking-tight uppercase">
                     {item.scan_time}
                   </td>
                 </tr>

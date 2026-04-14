@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import logoImg from './assets/cloudsentinel_logo.png'; 
-import { Mail, AlertCircle, CheckCircle2, X } from 'lucide-react';
+import { Mail, AlertCircle, CheckCircle2, X, Eye, EyeOff } from 'lucide-react'; // Added Eye icons
 
 /* --- FORGOT PASSWORD MODAL COMPONENT --- */
 const ForgotPasswordModal = ({ isOpen, onClose }) => {
@@ -23,10 +23,8 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
       const data = await response.json();
 
       if (response.ok) {
-        // We set the success message and leave the modal open
         setStatus({ type: 'success', msg: data.message });
-        setEmail(''); // Clear input
-        // --- REMOVED THE SETTIMEOUT HERE ---
+        setEmail('');
       } else {
         setStatus({ type: 'error', msg: data.error || "Email not found." });
       }
@@ -38,9 +36,9 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
   };
 
   const handleClose = () => {
-    setStatus({ type: '', msg: '' }); // Clear the "Got it thanks" state
+    setStatus({ type: '', msg: '' });
     setEmail('');
-    onClose(); // Call the original close function from props
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -71,7 +69,6 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
           </div>
         )}
 
-        {/* Conditional Rendering: Hide form on success */}
         {status.type !== 'success' ? (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1 pb-4">
@@ -111,9 +108,10 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
 function SignIn({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false); // New state for eye toggle
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', isError: false });
-  const [isForgotModalOpen, setIsForgotModalOpen] = useState(false); // New state
+  const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
 
   const navigate = useNavigate();
 
@@ -152,84 +150,100 @@ function SignIn({ onLoginSuccess }) {
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#252F3E] flex flex-col items-center justify-center pt-12 p-6 font-sans overflow-y-auto">
-      <div className="bg-white w-full max-w-[450px] rounded-[3rem] shadow-2xl p-8 flex flex-col items-center">
-        <div className="w-full flex justify-center mb-0">
-          <img src={logoImg} alt="CloudSentinel Logo" className="w-full max-w-[250px] h-auto object-contain" />
-        </div>
-
-        <h1 className="text-[50px] font-bold tracking-tight mt-4 flex gap-1">
-          <span className="text-black">Cloud</span>
-          <span className="text-[#FF9900]">Sentinel</span>
-        </h1>
-        <p className="text-[20px] text-[#505050] mb-10 mt-0">Sign in to your account</p>
-
-        {message.text && (
-          <div className={`mb-4 p-3 rounded-xl w-full text-center text-sm font-bold ${message.isError ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
-            {message.text}
-          </div>
-        )}
-
-        <form className="w-full space-y-5" onSubmit={handleSignIn}>
-          <div className="space-y-1">
-            <label className="text-[18px] font-semibold text-slate-700 ml-1">Email address</label>
-            <input 
-              type="email" 
-              className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-5 outline-none focus:ring-2 focus:ring-[#FF9900] transition-all text-[18px] text-slate-800 placeholder:text-slate-400"
-              placeholder="Enter your email address"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
+    <div className="min-h-screen w-full bg-[#252F3E] flex flex-col items-center font-sans overflow-y-auto relative pt-8">
+      
+      {/* Container that centers the card but allows footer to be pushed down */}
+      <div className="flex-grow flex items-center justify-center w-full p-6">
+        <div className="bg-white w-full max-w-[450px] rounded-[3rem] shadow-2xl p-8 flex flex-col items-center">
+          <div className="w-full flex justify-center mb-0">
+            <img src={logoImg} alt="CloudSentinel Logo" className="w-full max-w-[250px] h-auto object-contain" />
           </div>
 
-          <div className="space-y-1">
-            <div className="flex justify-between items-center px-1">
-              <label className="text-[18px] font-semibold text-slate-700">Password</label>
-              {/* FORGOT PASSWORD TRIGGER */}
-              <button 
-                type="button"
-                onClick={() => setIsForgotModalOpen(true)}
-                className="text-[#FF9900] text-[15px] font-bold cursor-pointer hover:text-[#D17D00]"
-              >
-                Forgot Password?
-              </button>
+          <h1 className="text-[50px] font-bold tracking-tight mt-4 flex gap-1 leading-tight text-center">
+            <span className="text-black">Cloud</span>
+            <span className="text-[#FF9900]">Sentinel</span>
+          </h1>
+          <p className="text-[20px] text-[#505050] mb-10 mt-0 text-center">Sign in to your account</p>
+
+          {message.text && (
+            <div className={`mb-4 p-3 rounded-xl w-full text-center text-sm font-bold animate-in fade-in slide-in-from-top-2 duration-300 ${
+              message.isError ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-green-50 text-green-600 border border-green-100'
+            }`}>
+              {message.text}
             </div>
-            <input 
-              type="password" 
-              className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-5 outline-none focus:ring-2 focus:ring-[#FF9900] transition-all text-[18px] text-slate-800"
-              placeholder="Enter your password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
+          )}
 
-          <button 
-            type="submit"
-            disabled={loading}
-            className="w-full bg-[#FF9900] hover:bg-[#D17D00] text-white font-bold py-4 rounded-2xl shadow-lg transition-all active:scale-[0.98]">
-            {loading ? "Authenticating..." : "Sign In"}
-          </button>
-        </form>
+          <form className="w-full space-y-5" onSubmit={handleSignIn}>
+            <div className="space-y-1">
+              <label className="text-[18px] font-semibold text-slate-700 ml-1">Email address</label>
+              <input 
+                type="email" 
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-5 outline-none focus:ring-2 focus:ring-[#FF9900] transition-all text-[18px] text-slate-800 placeholder:text-slate-400"
+                placeholder="Enter your email address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
 
-        <p className="mt-4 text-[16px] text-slate-600">
-          Don't have an account?{' '}
-          <span 
-            onClick={() => navigate('/signup')} 
-            className="text-[#FF9900] font-bold cursor-pointer hover:text-[#D17D00]">
-            Sign Up
-          </span>
-        </p>
+            <div className="space-y-1">
+              <div className="flex justify-between items-center px-1">
+                <label className="text-[18px] font-semibold text-slate-700">Password</label>
+                <button 
+                  type="button"
+                  onClick={() => setIsForgotModalOpen(true)}
+                  className="text-[#FF9900] text-[15px] font-bold cursor-pointer hover:text-[#D17D00]"
+                >
+                  Forgot Password?
+                </button>
+              </div>
+              
+              {/* PASSWORD INPUT WRAPPER */}
+              <div className="relative">
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 pl-5 pr-12 outline-none focus:ring-2 focus:ring-[#FF9900] transition-all text-[18px] text-slate-800"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#FF9900] transition-colors focus:outline-none p-1"
+                >
+                  {showPassword ? <EyeOff size={22} /> : <Eye size={22} />}
+                </button>
+              </div>
+            </div>
+
+            <button 
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[#FF9900] hover:bg-[#D17D00] text-white font-bold py-4 rounded-2xl shadow-lg transition-all active:scale-[0.98] disabled:opacity-50">
+              {loading ? "Authenticating..." : "Sign In"}
+            </button>
+          </form>
+
+          <p className="mt-4 text-[16px] text-slate-600">
+            Don't have an account?{' '}
+            <span 
+              onClick={() => navigate('/signup')} 
+              className="text-[#FF9900] font-bold cursor-pointer transition-colors duration-200 hover:text-[#D17D00]">
+              Sign Up
+            </span>
+          </p>
+        </div>
       </div>
       
-      <div className="mt-6">
+      {/* FOOTER: This now matches the SignUp page exactly */}
+      <div className="mt-auto pb-8 pt-4 w-full text-center">
         <p className="text-white/60 text-xs font-medium tracking-[0.2em] uppercase">
           Secure AWS misconfiguration detection
         </p>
       </div>
 
-      {/* RENDER THE MODAL */}
       <ForgotPasswordModal 
         isOpen={isForgotModalOpen} 
         onClose={() => setIsForgotModalOpen(false)} 
