@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 // Added RefreshCw for the scanning animation
-import { LayoutDashboard, Search, History as HistoryIcon, User, LogOut, Play, AlertCircle, RefreshCw } from 'lucide-react'; 
+import { LayoutDashboard, Search, History as HistoryIcon, User, LogOut, Play, AlertCircle, RefreshCw, Rocket, 
+    Database, Zap, ShieldCheck, Activity, ChevronRight, PieChart as PieIcon, Globe
+ } from 'lucide-react'; 
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import logoImg from './assets/cloudsentinel_logo.png';
 import Findings from './Findings'; 
 import History from './History';
@@ -26,6 +29,31 @@ const Dashboard = ({ onLogout, user }) => {
     const [currentService, setCurrentService] = useState(''); // Tracking S3, IAM, etc.
     const [completedServices, setCompletedServices] = useState([]);
     const [currentScanId, setCurrentScanId] = useState(null);
+
+    // --- NEW LOGIC FOR DUAL-STATE DASHBOARD ---
+    const [scans, setScans] = useState([]);
+
+    useEffect(() => {
+        const fetchHistory = async () => {
+            try {
+                const response = await fetch(`http://localhost:5000/api/scan-history/${user?.user_id || user?.id}`);
+                const data = await response.json();
+                if (response.ok) setScans(data.scans);
+            } catch (err) { console.error(err); }
+        };
+        if (user) fetchHistory();
+    }, [user, isScanning]); // Refresh after a scan completes
+
+    const hasHistory = scans.length > 0;
+    const latestScan = hasHistory ? scans[0] : null;
+
+    // Chart Colors & Data
+    const COLORS = ['#EF4444', '#F59E0B', '#10B981']; // Red, Amber, Emerald
+    const severityData = hasHistory ? [
+        { name: 'High', value: latestScan.high_count || 0 },
+        { name: 'Medium', value: latestScan.med_count || 0 },
+        { name: 'Low', value: latestScan.low_count || 0 },
+    ].filter(d => d.value > 0) : [];
 
     // --- DYNAMIC TITLES ---
     const pageContent = {
@@ -276,7 +304,7 @@ const Dashboard = ({ onLogout, user }) => {
                                 
                                 {/* Container for Title and Subtitle */}
                                 <div className="flex flex-col justify-center">
-                                    <h1 className="text-[27px] font-bold text-slate-900 leading-tight">
+                                    <h1 className="uppercase text-[22px] font-bold text-slate-900 leading-none tracking-wide">
                                         {activePage.title}
                                     </h1>
                                     
@@ -291,7 +319,7 @@ const Dashboard = ({ onLogout, user }) => {
                         <div className="flex-1 w-full h-full">
                             {/* DASHBOARD OVERVIEW */}
                             {currentPath === '/dashboard' && (
-                                <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-208px)] p-10 flex flex-col items-center justify-center text-center">
+                                <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-204px)] p-10 flex flex-col items-center justify-center text-center">
                                     <h3 className="text-xl font-bold text-slate-700">Security Overview</h3>
                                     <p className="text-slate-500 mt-2">Ready to audit? Click "Scan Now" to detect misconfigurations.</p>
                                 </div>
