@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-    Clock, Calendar, ArrowUpDown, ExternalLink, 
-    ChevronDown, Filter as FilterIcon, Activity, Search, PlayCircle 
+    Activity, Clock, ExternalLink, ChevronDown, Filter as FilterIcon, Search, Loader2 
 } from 'lucide-react';
 
 const History = ({ user }) => {
@@ -58,33 +57,34 @@ const History = ({ user }) => {
         });
     };
 
+    // --- 1. LOADING STATE (Matching Findings) ---
     if (loading) return (
-        <div className="flex flex-col items-center justify-center h-64 text-slate-400">
-            <div className="w-8 h-8 border-4 border-[#FF9900]/20 border-t-[#FF9900] rounded-full animate-spin mb-4"></div>
-            <p className="font-bold uppercase tracking-widest text-[11px]">Syncing Audit Logs...</p>
+        <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-208px)] p-20 flex flex-col items-center justify-center animate-in fade-in duration-300">
+            <Loader2 className="animate-spin text-[#FF9900] mb-4" size={48} />
+            <p className="text-slate-500 font-bold text-lg uppercase tracking-widest">Syncing Audit Logs...</p>
         </div>
     );
 
     return (
-        <div className="flex flex-col gap-8 pb-6 animate-in fade-in duration-500">
+        <div className="flex flex-col gap-5 pb-6">
             
             {scans.length > 0 ? (
                 <>
-                    {/* --- 1. FILTER TOOLBAR --- */}
-                    <div className="bg-white border border-slate-200 rounded-2xl px-6 py-4 shadow-sm flex items-center justify-between">
+                    {/* --- 2. FILTER TOOLBAR (Matching Findings) --- */}
+                    <div className="bg-white border border-slate-200 rounded-2xl pl-6 px-4 py-4 shadow-sm flex items-center justify-between">
                         <div className="flex items-center gap-4 border-r border-slate-100 pr-8">
                             <div className="bg-orange-50 p-2.5 rounded-xl">
                                 <FilterIcon size={20} className="text-[#FF9900]" />
                             </div>
                             <div>
-                                <h4 className="text-[18px] font-black text-slate-900 uppercase leading-none">History Filters</h4>
+                                <h4 className="text-[16px] font-extrabold text-slate-700 tracking-wide uppercase leading-none">History Filters</h4>
                             </div>
                         </div>
 
                         <div className="flex items-center gap-7 flex-1 justify-end pl-8">
                             <div className="relative group min-w-[200px]">
                                 <select 
-                                    className="appearance-none w-full text-[14px] font-bold text-slate-600 bg-slate-50/50 border border-slate-200 rounded-xl pl-5 pr-12 py-3 outline-none hover:bg-white hover:border-[#FF9900]/30 transition-all cursor-pointer"
+                                    className="appearance-none w-full text-[14px] font-semibold text-slate-600 bg-slate-50/50 border border-slate-200 rounded-xl pl-5 pr-12 py-3 outline-none hover:bg-white hover:border-[#FF9900]/30 transition-all cursor-pointer"
                                     value={sortOrder}
                                     onChange={(e) => setSortOrder(e.target.value)}
                                 >
@@ -96,89 +96,143 @@ const History = ({ user }) => {
                         </div>
                     </div>
 
-                    {/* --- 2. AUDIT ANALYSIS HEADER (Matching Findings) --- */}
+                    {/* --- 3. AUDIT ANALYSIS HEADER (Matching Findings) --- */}
                     <div className="flex flex-col gap-4">
-                        <div className="px-2">
-                            <div className="flex items-center justify-between ml-4">
-                                <div className="flex items-center gap-2">
-                                    <Clock size={18} className="text-slate-400" />
-                                    <span className="text-[14px] font-extrabold text-slate-700 uppercase tracking-widest">Audit Sessions:</span>
-                                    <span className="text-[14px] font-extrabold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg border border-indigo-100">
-                                        Total of {scans.length} Scans
-                                    </span>
-                                </div>
-                                
-                                <div className="bg-slate-900 text-white text-[14px] font-black px-4 py-1.5 rounded-lg shadow-lg uppercase tracking-widest">
-                                    Full Audit Trail
+                        <div className="mb-2">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 px-4 py-2.5 rounded-2xl shadow-sm">
+                                    <Activity size={20} className="text-slate-700" />
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-[13px] font-extrabold text-slate-700 uppercase tracking-[0.15em] leading-none">
+                                            Audit Sessions
+                                        </span>
+                                        <div className="w-[1px] h-5 bg-[#252F3E]/10"></div>
+                                        <div className="flex items-center pl-1">
+                                            <div className="bg-[#252F3E]/95 text-white px-4 h-[34px] flex items-center justify-center rounded-xl font-bold text-[13px] shadow-md shadow-slate-200">
+                                                Total of {scans.length} Scans
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                        {/* --- 3. MAIN DATA TABLE --- */}
+
+                        {/* --- 4. MAIN DATA TABLE (Matching Findings) --- */}
                         <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
                             <table className="w-full border-collapse table-fixed"> 
                                 <thead className="bg-slate-100 border-b border-slate-100">
-                                    <tr className="text-slate-700">
-                                        <th className="py-5 w-[16%] text-center text-[15px] font-black uppercase tracking-widest">Audit Date</th>
-                                        <th className="py-5 w-[14%] text-center text-[15px] font-black uppercase tracking-widest">Start Time</th>
-                                        <th className="py-5 w-[14%] text-center text-[15px] font-black uppercase tracking-widest">End Time</th>
-                                        <th className="py-5 w-[13%] text-center text-[15px] font-black uppercase tracking-widest">Duration</th>
-                                        <th className="py-5 w-[13%] text-center text-[15px] font-black uppercase tracking-widest">Status</th>
-                                        <th className="py-5 w-[20%] text-center text-[15px] font-black uppercase tracking-widest">Severities <br></br>(HIGH, MEDIUM, LOW)</th>
-                                        <th className="py-5 w-[10%] text-center text-[15px] font-black uppercase tracking-widest">Action</th>
+                                    <tr className="bg-slate-50/80 border-b border-slate-200">
+                                        <th className="px-6 py-4 w-[16%] text-center">
+                                            <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">
+                                                Audit Date
+                                            </span>
+                                        </th>
+                                        <th className="px-6 py-4 w-[14%] text-center">
+                                            <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">
+                                                Start
+                                            </span>
+                                        </th>
+                                        <th className="px-6 py-4 w-[14%] text-center">
+                                            <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">
+                                                End
+                                            </span>
+                                        </th>
+                                        <th className="px-6 py-4 w-[13%] text-center">
+                                            <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">
+                                                Duration
+                                            </span>
+                                        </th>
+                                        <th className="px-6 py-4 w-[13%] text-center">
+                                            <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">
+                                                Status
+                                            </span>
+                                        </th>
+                                        <th className="px-6 py-4 w-[20%] text-center">
+                                            <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">
+                                                Severities
+                                            </span>
+                                        </th>
+                                        <th className="px-6 py-4 w-[10%] text-center">
+                                            <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">
+                                                Action
+                                            </span>
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200">
                                     {sortedScans.map((scan) => (
                                         <tr key={scan.scan_id} className="hover:bg-slate-50/50 transition-all duration-200 group">
-                                            <td className="py-7 text-center text-[17px] font-extrabold text-slate-800 uppercase">
+                                            <td className="px-4 py-7 text-center text-[16px] font-bold text-slate-900 uppercase">
                                                 {formatDate(scan.start_time)}
                                             </td>
                                             
-                                            <td className="py-7 text-center text-[17px] font-extrabold text-slate-800 uppercase">
+                                            <td className="px-4 py-7 text-center text-[15px] font-bold text-slate-700">
                                                 {formatTime(scan.start_time)}
                                             </td>
                                             
-                                            <td className="py-7 text-center text-[17px] font-extrabold text-slate-800 uppercase">
-                                                {/* If end_time is null (cancelled), show dashes */}
+                                            <td className="px-4 py-7 text-center text-[15px] font-bold text-slate-700">
                                                 {scan.end_time ? formatTime(scan.end_time) : "--:--:--"}
                                             </td>
                                             
-                                            <td className="py-7 text-center font-extrabold text-slate-800 text-[17px]">
-                                                {/* If duration is null or 0 (cancelled), show dashes */}
+                                            <td className="px-4 py-7 text-center font-bold text-slate-900 text-[16px]">
                                                 {scan.duration && scan.duration > 0 ? `${Number(scan.duration).toFixed(2)}s` : "---"}
                                             </td>
                                             
-                                            <td className="py-7 text-center">
-                                                <span className={`text-[14px] font-black px-3 py-1.5 rounded-lg uppercase tracking-wider inline-block border ${
-                                                    scan.scan_status === 'COMPLETED' 
-                                                    ? 'bg-green-500 text-white border-green-100' 
-                                                    : 'bg-yellow-500 text-white border-yellow-100'
-                                                }`}>
-                                                    {scan.scan_status}
-                                                </span>
-                                            </td>
-                                            
-                                            <td className="py-7 text-center">
-                                                {/* flex justify-center ensures the badge group is centered under the title */}
-                                                <div className="flex justify-center items-center gap-2">
-                                                    <div className="bg-red-500 text-white px-2.5 py-1 rounded-md text-[17px] font-black min-w-[32px]">
-                                                        {scan.high_count || 0}
+                                            <td className="px-4 py-7 text-center">
+                                                <div className="flex justify-center">
+                                                    {scan.scan_status === 'COMPLETED' ? (
+                                                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 shadow-sm transition-all duration-300">
+                                                        {/* Success Pulse Dot */}
+                                                        <div className="relative flex h-2 w-2">
+                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                                        </div>
+                                                        <span className="text-[11px] font-black uppercase tracking-widest">
+                                                        Completed
+                                                        </span>
                                                     </div>
-                                                    <div className="bg-yellow-500 text-white px-2.5 py-1 rounded-md text-[17px] font-black min-w-[32px]">
-                                                        {scan.med_count || 0}
+                                                    ) : (
+                                                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 shadow-sm transition-all duration-300">
+                                                        {/* Warning Pulse Dot */}
+                                                        <div className="relative flex h-2 w-2">
+                                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                                                        </div>
+                                                        <span className="text-[11px] font-black uppercase tracking-widest">
+                                                        {scan.scan_status}
+                                                        </span>
                                                     </div>
-                                                    <div className="bg-blue-500 text-white px-2.5 py-1 rounded-md text-[17px] font-black min-w-[32px]">
-                                                        {scan.low_count || 0}
-                                                    </div>
+                                                    )}
                                                 </div>
                                             </td>
                                             
-                                            <td className="py-7 text-center">
+                                            <td className="px-4 py-7 text-center">
+                                                {/* flex justify-center ensures the badge group is centered */}
+                                                <div className="flex justify-center items-center gap-3">
+                                                    
+                                                    {/* High Severity Badge */}
+                                                    <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-3 py-1.5 rounded-full shadow-sm shadow-red-100 min-w-[50px] justify-center">
+                                                    <span className="text-[14px] font-black">{scan.high_count || 0}</span>
+                                                    </div>
+
+                                                    {/* Medium Severity Badge */}
+                                                    <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 px-3 py-1.5 rounded-full shadow-sm shadow-amber-100 min-w-[50px] justify-center">
+                                                    <span className="text-[14px] font-black">{scan.med_count || 0}</span>
+                                                    </div>
+
+                                                    {/* Low Severity Badge */}
+                                                    <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-1.5 rounded-full shadow-sm shadow-emerald-100 min-w-[50px] justify-center">
+                                                    <span className="text-[14px] font-black">{scan.low_count || 0}</span>
+                                                    </div>
+                                                    
+                                                </div>
+                                            </td>
+                                            
+                                            <td className="px-4 py-7 text-center">
                                                 <button 
                                                     onClick={() => handleViewDetails(scan.scan_id)} 
-                                                    className="p-3 bg-[#252F3E] text-white rounded-xl hover:bg-[#FF9900] transition-all active:scale-95 shadow-md inline-flex items-center justify-center"
+                                                    className="p-2.5 bg-[#FF9900] text-white rounded-xl hover:bg-[#D17D00] transition-all active:scale-95 shadow-md inline-flex items-center justify-center"
                                                 >
-                                                    <ExternalLink size={18} />
+                                                    <ExternalLink size={16} />
                                                 </button>
                                             </td>
                                         </tr>
@@ -189,12 +243,12 @@ const History = ({ user }) => {
                     </div>
                 </>
             ) : (
-                /* --- VIEW 3: EMPTY STATE --- */
+                /* --- 5. EMPTY STATE (Matching Findings) --- */
                 <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-208px)] p-10 flex flex-col items-center justify-center text-center">
                     <div className="bg-slate-50 p-8 rounded-full mb-6 border border-slate-100">
                         <Search size={60} className="text-slate-300" />
                     </div>
-                    <h3 className="text-[24px] font-black text-slate-800 uppercase tracking-tight">No History Recorded</h3>
+                    <h3 className="text-[20px] font-black text-slate-800 uppercase tracking-tight">No History Recorded</h3>
                     <p className="text-slate-500 max-w-[340px] text-[15px] mt-3 font-medium leading-relaxed">
                         Your security audit logs are empty. Start a scan to monitor your AWS environment.
                     </p>

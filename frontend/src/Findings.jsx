@@ -146,7 +146,7 @@ if (loading) {
           </div>
           <button 
             onClick={() => navigate('/findings', { replace: true, state: {} })}
-            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all text-white border border-white/20"
+            className="flex items-center gap-2 bg-[#FF9900] hover:bg-[#D17D00] px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all text-white border border-white/20"
           >
             <ArrowLeft size={14} /> Back to Latest
           </button>
