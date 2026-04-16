@@ -34,8 +34,10 @@ const History = ({ user }) => {
         return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
     });
 
-    const handleViewDetails = (scanId) => {
-        navigate('/findings', { state: { selectedScanId: scanId } });
+    const handleViewDetails = (scanId, status) => {
+        if (status === 'COMPLETED') {
+            navigate('/findings', { state: { selectedScanId: scanId } });
+        }
     };
 
     const formatTime = (dateString) => {
@@ -57,7 +59,6 @@ const History = ({ user }) => {
         });
     };
 
-    // --- 1. LOADING STATE (Matching Findings) ---
     if (loading) return (
         <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-208px)] p-20 flex flex-col items-center justify-center animate-in fade-in duration-300">
             <Loader2 className="animate-spin text-[#FF9900] mb-4" size={48} />
@@ -70,7 +71,6 @@ const History = ({ user }) => {
             
             {scans.length > 0 ? (
                 <>
-                    {/* --- 2. FILTER TOOLBAR (Matching Findings) --- */}
                     <div className="bg-white border border-slate-200 rounded-2xl pl-6 px-4 py-4 shadow-sm flex items-center justify-between">
                         <div className="flex items-center gap-4 border-r border-slate-100 pr-8">
                             <div className="bg-orange-50 p-2.5 rounded-xl">
@@ -96,7 +96,6 @@ const History = ({ user }) => {
                         </div>
                     </div>
 
-                    {/* --- 3. AUDIT ANALYSIS HEADER (Matching Findings) --- */}
                     <div className="flex flex-col gap-4">
                         <div className="mb-2">
                             <div className="flex items-center justify-between">
@@ -117,45 +116,30 @@ const History = ({ user }) => {
                             </div>
                         </div>
 
-                        {/* --- 4. MAIN DATA TABLE (Matching Findings) --- */}
                         <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
                             <table className="w-full border-collapse table-fixed"> 
                                 <thead className="bg-slate-100 border-b border-slate-100">
                                     <tr className="bg-slate-50/80 border-b border-slate-200">
                                         <th className="px-6 py-4 w-[16%] text-center">
-                                            <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">
-                                                Audit Date
-                                            </span>
+                                            <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">Audit Date</span>
                                         </th>
                                         <th className="px-6 py-4 w-[14%] text-center">
-                                            <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">
-                                                Start
-                                            </span>
+                                            <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">Start</span>
                                         </th>
                                         <th className="px-6 py-4 w-[14%] text-center">
-                                            <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">
-                                                End
-                                            </span>
+                                            <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">End</span>
                                         </th>
                                         <th className="px-6 py-4 w-[13%] text-center">
-                                            <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">
-                                                Duration
-                                            </span>
+                                            <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">Duration</span>
                                         </th>
                                         <th className="px-6 py-4 w-[13%] text-center">
-                                            <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">
-                                                Status
-                                            </span>
+                                            <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">Status</span>
                                         </th>
                                         <th className="px-6 py-4 w-[20%] text-center">
-                                            <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">
-                                                Severities
-                                            </span>
+                                            <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">Severities</span>
                                         </th>
                                         <th className="px-6 py-4 w-[10%] text-center">
-                                            <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">
-                                                Action
-                                            </span>
+                                            <span className="text-[12px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">Action</span>
                                         </th>
                                     </tr>
                                 </thead>
@@ -165,72 +149,63 @@ const History = ({ user }) => {
                                             <td className="px-4 py-7 text-center text-[16px] font-bold text-slate-900 uppercase">
                                                 {formatDate(scan.start_time)}
                                             </td>
-                                            
                                             <td className="px-4 py-7 text-center text-[15px] font-bold text-slate-700">
                                                 {formatTime(scan.start_time)}
                                             </td>
-                                            
                                             <td className="px-4 py-7 text-center text-[15px] font-bold text-slate-700">
                                                 {scan.end_time ? formatTime(scan.end_time) : "--:--:--"}
                                             </td>
-                                            
                                             <td className="px-4 py-7 text-center font-bold text-slate-900 text-[16px]">
                                                 {scan.duration && scan.duration > 0 ? `${Number(scan.duration).toFixed(2)}s` : "---"}
                                             </td>
-                                            
                                             <td className="px-4 py-7 text-center">
                                                 <div className="flex justify-center">
                                                     {scan.scan_status === 'COMPLETED' ? (
-                                                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 shadow-sm transition-all duration-300">
-                                                        {/* Success Pulse Dot */}
-                                                        <div className="relative flex h-2 w-2">
-                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 shadow-sm transition-all duration-300">
+                                                            <div className="relative flex h-2 w-2">
+                                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                                            </div>
+                                                            <span className="text-[11px] font-black uppercase tracking-widest">Completed</span>
                                                         </div>
-                                                        <span className="text-[11px] font-black uppercase tracking-widest">
-                                                        Completed
-                                                        </span>
-                                                    </div>
                                                     ) : (
-                                                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 shadow-sm transition-all duration-300">
-                                                        {/* Warning Pulse Dot */}
-                                                        <div className="relative flex h-2 w-2">
-                                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                                                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 shadow-sm transition-all duration-300">
+                                                            <div className="h-2 w-2 rounded-full bg-amber-500"></div>
+                                                            <span className="text-[11px] font-black uppercase tracking-widest">{scan.scan_status}</span>
                                                         </div>
-                                                        <span className="text-[11px] font-black uppercase tracking-widest">
-                                                        {scan.scan_status}
-                                                        </span>
-                                                    </div>
                                                     )}
                                                 </div>
                                             </td>
-                                            
-                                            <td className="px-4 py-7 text-center">
-                                                {/* flex justify-center ensures the badge group is centered */}
+                                            <td className="px-4 py-7">
                                                 <div className="flex justify-center items-center gap-3">
-                                                    
-                                                    {/* High Severity Badge */}
-                                                    <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-3 py-1.5 rounded-full shadow-sm shadow-red-100 min-w-[50px] justify-center">
-                                                    <span className="text-[14px] font-black">{scan.high_count || 0}</span>
-                                                    </div>
-
-                                                    {/* Medium Severity Badge */}
-                                                    <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 px-3 py-1.5 rounded-full shadow-sm shadow-amber-100 min-w-[50px] justify-center">
-                                                    <span className="text-[14px] font-black">{scan.med_count || 0}</span>
-                                                    </div>
-
-                                                    {/* Low Severity Badge */}
-                                                    <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-1.5 rounded-full shadow-sm shadow-emerald-100 min-w-[50px] justify-center">
-                                                    <span className="text-[14px] font-black">{scan.low_count || 0}</span>
-                                                    </div>
-                                                    
+                                                    {scan.scan_status === 'COMPLETED' ? (
+                                                        <>
+                                                            <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-3 py-1.5 rounded-full shadow-sm shadow-red-100 min-w-[50px] justify-center">
+                                                                <span className="text-[14px] font-black">{scan.high_count || 0}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 px-3 py-1.5 rounded-full shadow-sm shadow-amber-100 min-w-[50px] justify-center">
+                                                                <span className="text-[14px] font-black">{scan.med_count || 0}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-1.5 rounded-full shadow-sm shadow-emerald-100 min-w-[50px] justify-center">
+                                                                <span className="text-[14px] font-black">{scan.low_count || 0}</span>
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        <div className="bg-slate-50 border border-slate-200 text-slate-500 px-6 py-1 rounded-full text-[12px] font-black tracking-widest shadow-inner">
+                                                            N/A
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </td>
-                                            
                                             <td className="px-4 py-7 text-center">
                                                 <button 
-                                                    onClick={() => handleViewDetails(scan.scan_id)} 
-                                                    className="p-2.5 bg-[#FF9900] text-white rounded-xl hover:bg-[#D17D00] transition-all active:scale-95 shadow-md inline-flex items-center justify-center"
+                                                    disabled={scan.scan_status !== 'COMPLETED'}
+                                                    onClick={() => handleViewDetails(scan.scan_id, scan.scan_status)} 
+                                                    className={`p-2.5 rounded-xl transition-all shadow-md inline-flex items-center justify-center ${
+                                                        scan.scan_status === 'COMPLETED' 
+                                                        ? 'bg-[#FF9900] text-white hover:bg-[#D17D00] active:scale-95' 
+                                                        : 'bg-slate-100 text-slate-300 cursor-not-allowed shadow-none'
+                                                    }`}
                                                 >
                                                     <ExternalLink size={16} />
                                                 </button>
@@ -243,7 +218,6 @@ const History = ({ user }) => {
                     </div>
                 </>
             ) : (
-                /* --- 5. EMPTY STATE (Matching Findings) --- */
                 <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-208px)] p-10 flex flex-col items-center justify-center text-center">
                     <div className="bg-slate-50 p-8 rounded-full mb-6 border border-slate-100">
                         <Search size={60} className="text-slate-300" />

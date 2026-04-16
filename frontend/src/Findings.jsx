@@ -1,95 +1,118 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom'; // Added for navigation state
+import { useLocation, useNavigate } from 'react-router-dom';
 import { AlertCircle, ShieldCheck, Loader2, Filter as FilterIcon, ChevronDown, Clock, Search, ArrowLeft, HistoryIcon } from 'lucide-react';
 import axios from 'axios';
 
 const Findings = ({ scanId: propScanId, user }) => { 
   const location = useLocation();
   const navigate = useNavigate();
+  
+  // --- STATES ---
   const [findings, setFindings] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [filterCategory, setFilterCategory] = useState('All');
   const [filterSeverity, setFilterSeverity] = useState('All');
+  const [hasHistoryRecord, setHasHistoryRecord] = useState(false); 
 
-  // --- NEW: Priority Logic for Scan ID ---
-  // Checks if a scanId was passed via navigate state (from History page)
-  // Otherwise uses the prop scanId or "latest"
+  // --- SCAN ID RESOLUTION ---
   const passedScanId = location.state?.selectedScanId;
-  const targetScanId = passedScanId || propScanId || "latest";
+  // Initialize state with the best available ID, but allow useEffect to override it
+  const [activeScanId, setActiveScanId] = useState(passedScanId || propScanId || "latest");
 
   useEffect(() => {
     const fetchFindings = async () => {
       try {
         setLoading(true);
         const storedUser = JSON.parse(localStorage.getItem('user'));
-        const currentUserId = user?.user_id || user?.id || storedUser?.user_id || storedUser?.id;
+        const uid = user?.user_id || user?.id || storedUser?.user_id || storedUser?.id;
+        
+        if (!uid) {
+          console.warn("No UID available yet.");
+          return;
+        }
 
-        const response = await axios.get(`http://localhost:5000/api/scan-results/${targetScanId}`, {
-            params: { user_id: currentUserId } 
+        let currentId = activeScanId;
+
+        // 1. Resolve "latest" if we don't have a specific UUID
+        if (currentId === "latest") {
+          const historyRes = await axios.get(`http://localhost:5000/api/scan-history/${uid}`);
+          const validScans = historyRes.data.scans.filter(s => s.scan_status === 'COMPLETED');
+
+        if (validScans && validScans.length > 0) {
+            currentId = validScans[0].scan_id; // Grab the truly latest successful ID
+            setActiveScanId(currentId);
+            setHasHistoryRecord(true);
+        } else {
+            // If they have scans but none are COMPLETED, show the "No Scan Entry" screen
+            setHasHistoryRecord(false);
+            setFindings([]);
+            setLoading(false);
+            return; 
+        }
+        } else {
+          // If we already have a UUID, it implies history exists
+          setHasHistoryRecord(true);
+        }
+
+        // 2. Fetch Results for the resolved ID
+        const response = await axios.get(`http://localhost:5000/api/scan-results/${currentId}`, {
+          params: { user_id: uid } 
         });
-        setFindings(response.data);
+
+        const rawData = response.data.results || response.data;
+        setFindings(Array.isArray(rawData) ? rawData : []);
+        
       } catch (err) {
         console.error("❌ Fetch error:", err);
         setFindings([]);
+        setHasHistoryRecord(false);
       } finally {
         setLoading(false);
       }
     };
-    if (user || localStorage.getItem('user')) fetchFindings();
-  }, [targetScanId, user]); // Refetch if targetScanId changes
 
-const filteredData = findings.filter(item => {
-  const categoryMatch = filterCategory === 'All' || item.category === filterCategory;
-  const severityMatch = filterSeverity === 'All' || item.severity === filterSeverity;
-  return categoryMatch && severityMatch;
-});
+    fetchFindings();
+  }, [user, propScanId, passedScanId]); // Dependencies updated for stability
 
-const getSeverityStyle = (sev) => {
+  // --- FILTERING ---
+  const filteredData = findings.filter(item => {
+    const categoryMatch = filterCategory === 'All' || item.category === filterCategory;
+    const severityMatch = filterSeverity === 'All' || item.severity === filterSeverity;
+    return categoryMatch && severityMatch;
+  });
+
+  // --- STYLING HELPERS ---
+  const getSeverityStyle = (sev) => {
     switch (sev?.toUpperCase()) {
-      case 'HIGH': 
-        return {
-          container: 'bg-red-50 border-red-200 text-red-700 shadow-sm shadow-red-100',
-          dot: 'bg-red-500 animate-pulse'
-        };
-      case 'MEDIUM': 
-        return {
-          container: 'bg-amber-50 border-amber-200 text-amber-700 shadow-sm shadow-amber-100',
-          dot: 'bg-amber-500'
-        };
-      case 'LOW': 
-        return {
-          container: 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm shadow-emerald-100',
-          dot: 'bg-emerald-500'
-        };
-      default: 
-        return {
-          container: 'bg-slate-50 border-slate-200 text-slate-600',
-          dot: 'bg-slate-400'
-        };
+      case 'HIGH': return { container: 'bg-red-50 border-red-200 text-red-700 shadow-sm shadow-red-100', dot: 'bg-red-500 animate-pulse' };
+      case 'MEDIUM': return { container: 'bg-amber-50 border-amber-200 text-amber-700 shadow-sm shadow-amber-100', dot: 'bg-amber-500' };
+      case 'LOW': return { container: 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm shadow-emerald-100', dot: 'bg-emerald-500' };
+      default: return { container: 'bg-slate-50 border-slate-200 text-slate-600', dot: 'bg-slate-400' };
     }
-};
+  };
 
-const getServiceStyle = (service) => {
+  const getServiceStyle = (service) => {
     const s = service?.toUpperCase();
-    if (s?.includes('S3')) return 'bg-[#FF9900]/10 border border-[#FF9900]/20 px-3 py-1 rounded-[1.5rem] text-[#FF9900]';
-    if (s?.includes('IAM')) return 'bg-[#FF9900]/10 border border-[#FF9900]/20 px-3 py-1 rounded-[1.5rem] text-[#FF9900]';
-    if (s?.includes('VPC')) return 'bg-[#FF9900]/10 border border-[#FF9900]/20 px-3 py-1 rounded-[1.5rem] text-[#FF9900]';
-    if (s?.includes('EC2')) return 'bg-[#FF9900]/10 border border-[#FF9900]/20 px-3 py-1 rounded-[1.5rem] text-[#FF9900]';
-    if (s?.includes('EBS')) return 'bg-[#FF9900]/10 border border-[#FF9900]/20 px-3 py-1 rounded-[1.5rem] text-[#FF9900]';
+    if (s?.includes('S3') || s?.includes('IAM') || s?.includes('VPC') || s?.includes('EC2') || s?.includes('EBS')) {
+        return 'bg-[#FF9900]/10 border border-[#FF9900]/20 px-3 py-1 rounded-[1.5rem] text-[#FF9900]';
+    }
     return 'bg-slate-50 border-slate-100 text-slate-700';
-};
+  };
 
-  // --- 1. LOADING STATE ---
-if (loading) {
-  return (
-    <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-208px)] p-20 flex flex-col items-center justify-center animate-in fade-in duration-300">
-      <Loader2 className="animate-spin text-[#FF9900] mb-4" size={48} />
-      <p className="text-slate-500 font-bold text-lg uppercase tracking-widest">Analyzing AWS Infrastructure...</p>      </div>
-  );
-}
+  // --- CONDITIONAL RENDERING ---
 
-// --- 2. NO SCAN ENTRY ---
-  if (targetScanId === "latest" && findings.length === 0) {
+  // 1. LOADING
+  if (loading) {
+    return (
+      <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-208px)] p-20 flex flex-col items-center justify-center animate-in fade-in duration-300">
+        <Loader2 className="animate-spin text-[#FF9900] mb-4" size={48} />
+        <p className="text-slate-500 font-bold text-lg uppercase tracking-widest">Analyzing AWS Infrastructure...</p>
+      </div>
+    );
+  }
+
+  // 2. NO HISTORY (User has never scanned)
+  if (!hasHistoryRecord) {
     return (
       <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-208px)] p-10 flex flex-col items-center justify-center text-center">
         <div className="bg-slate-50 p-8 rounded-full mb-6 border border-slate-100">
@@ -97,19 +120,16 @@ if (loading) {
         </div>
         <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">No Scan Entry Found</h3>
         <p className="text-slate-500 mt-3 max-w-sm font-medium leading-relaxed">
-          It looks like you haven't started a security audit yet. Please return to the dashboard to initiate a new scan.
+          It looks like you haven't started a security audit yet.
         </p>
-        <button 
-          onClick={() => navigate('/dashboard')}
-          className="mt-8 px-10 py-4 bg-slate-900 text-white font-black rounded-2xl shadow-xl hover:bg-slate-800 transition-all active:scale-95 text-[13px] tracking-widest uppercase"
-        >
+        <button onClick={() => navigate('/dashboard')} className="mt-8 px-10 py-4 bg-slate-900 text-white font-black rounded-2xl shadow-xl hover:bg-slate-800 transition-all active:scale-95 text-[13px] tracking-widest uppercase">
           Return to Dashboard
         </button>
       </div>
     );
   }
 
-  // --- 3. NO MISCONFIGURATIONS ---
+  // 3. NO MISCONFIGURATIONS (Successful Clean Scan)
   if (findings.length === 0) {
     return (
       <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-220px)] p-20 flex flex-col items-center justify-center text-center">
@@ -120,10 +140,6 @@ if (loading) {
         <p className="text-slate-500 mt-3 max-w-sm font-medium leading-relaxed">
           Scan complete! Your AWS environment is currently secure and follows all OWASP CNAS best practices.
         </p>
-        <div className="mt-8 flex items-center gap-2 px-4 py-2 bg-green-50 rounded-full border border-green-200 animate-pulse">
-           <div className="w-2 h-2 rounded-full bg-green-500"></div>
-           <span className="text-[11px] font-black text-green-700 uppercase tracking-widest">Environment Verified</span>
-        </div>
       </div>
     );
   }
