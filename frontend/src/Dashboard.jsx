@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 // Added RefreshCw for the scanning animation
-import { LayoutDashboard, Search, History as HistoryIcon, User, LogOut, Play, AlertCircle, RefreshCw, Rocket, 
+import { Clock, LayoutDashboard, Search, History as HistoryIcon, User, LogOut, Play, AlertCircle, RefreshCw, Rocket, 
     Database, Zap, ShieldCheck, Activity, ChevronRight, PieChart as PieIcon, Globe
  } from 'lucide-react'; 
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
@@ -26,30 +26,69 @@ const Dashboard = ({ onLogout, user }) => {
         secretKey: '',
         region: ''
     });
-    const [currentService, setCurrentService] = useState(''); // Tracking S3, IAM, etc.
-    const [completedServices, setCompletedServices] = useState([]);
-    const [currentScanId, setCurrentScanId] = useState(null);
-
-    // --- NEW LOGIC FOR DUAL-STATE DASHBOARD ---
     const [scans, setScans] = useState([]);
+    const [isInitialLoading, setIsInitialLoading] = useState(true);
+    const [currentService, setCurrentService] = useState(''); // Tracking S3, IAM, etc.
+    const [currentScanId, setCurrentScanId] = useState(null);
+    const [findings, setFindings] = useState([]); // 1. Add this state at the top
 
     useEffect(() => {
-        const fetchHistory = async () => {
+        const fetchData = async () => {
+            setIsInitialLoading(true);
             try {
-                const response = await fetch(`http://localhost:5000/api/scan-history/${user?.user_id || user?.id}`);
-                const data = await response.json();
-                if (response.ok) setScans(data.scans);
-            } catch (err) { console.error(err); }
-        };
-        if (user) fetchHistory();
-    }, [user, isScanning]); // Refresh after a scan completes
+                const uid = user?.user_id || user?.id;
+                
+                // 1. Fetch History
+                const historyRes = await fetch(`http://localhost:5000/api/scan-history/${uid}`);
+                const historyData = await historyRes.json();
+                
+                if (historyRes.ok && historyData.scans?.length > 0) {
+                    setScans(historyData.scans);
 
-    const hasHistory = scans.length > 0;
-    const latestScan = hasHistory ? scans[0] : null;
+                    // --- FIX STARTS HERE ---
+                    // Instead of historyData.scans[0], find the first one that is 'COMPLETED'
+                    const lastCompleted = historyData.scans.find(s => s.scan_status === 'COMPLETED');
+
+                    if (lastCompleted) {
+                        const latestId = lastCompleted.scan_id;
+
+                        // 2. Fetch the actual Result Items for this COMPLETED scan
+                        const resultsRes = await fetch(`http://localhost:5000/api/scan-results/${latestId}`);
+                        const resultsData = await resultsRes.json();
+                        
+                        // Map the results to findings state
+                        setFindings(resultsData.results || resultsData || []);
+                    } else {
+                        // Reset findings if no successful scans exist
+                        setFindings([]);
+                    }
+                }
+            } catch (err) {
+                console.error("Dashboard Sync Error:", err);
+            } finally {
+                setIsInitialLoading(false);
+            }
+        };
+        if (user) fetchData();
+    }, [user, isScanning]);
+
+    console.log("Current Findings Data:", findings);
+
+    const serviceCounts = {
+        // We check if the string includes the service name, handling the "VPC, EC2" cases
+        S3: findings.filter(f => (f.aws_service || f.service)?.toUpperCase().includes('S3')).length,
+        IAM: findings.filter(f => (f.aws_service || f.service)?.toUpperCase().includes('IAM')).length,
+        VPC: findings.filter(f => (f.aws_service || f.service)?.toUpperCase().includes('VPC')).length,
+        EC2: findings.filter(f => (f.aws_service || f.service)?.toUpperCase().includes('EC2')).length,
+        EBS: findings.filter(f => (f.aws_service || f.service)?.toUpperCase().includes('EBS')).length,
+    };
+
+    const latestScan = scans.find(s => s.scan_status === 'COMPLETED') || null;
+    const hasHistory = latestScan !== null;
 
     // Chart Colors & Data
     const COLORS = ['#EF4444', '#F59E0B', '#10B981']; // Red, Amber, Emerald
-    const severityData = hasHistory ? [
+    const severityData = latestScan ? [
         { name: 'High', value: latestScan.high_count || 0 },
         { name: 'Medium', value: latestScan.med_count || 0 },
         { name: 'Low', value: latestScan.low_count || 0 },
@@ -262,10 +301,10 @@ const Dashboard = ({ onLogout, user }) => {
                 </div>
 
                 <nav className="flex-1 space-y-3 ">
-                    <NavItem icon={<LayoutDashboard size={22} />} label="Dashboard" isActive={currentPath === '/dashboard'} onClick={() => navigate('/dashboard')} />
-                    <NavItem icon={<Search size={22} />} label="Findings" isActive={currentPath === '/findings'} onClick={() => navigate('/findings')} />
-                    <NavItem icon={<HistoryIcon size={22} />} label="History" isActive={currentPath === '/history'} onClick={() => navigate('/history')} />
-                    <NavItem icon={<User size={22} />} label="Profile" isActive={currentPath === '/profile'} onClick={() => navigate('/profile')} />
+                    <NavItem icon={<LayoutDashboard size={22} />} label="DASHBOARD" isActive={currentPath === '/dashboard'} onClick={() => navigate('/dashboard')} />
+                    <NavItem icon={<Search size={22} />} label="FINDINGS" isActive={currentPath === '/findings'} onClick={() => navigate('/findings')} />
+                    <NavItem icon={<HistoryIcon size={22} />} label="HISTORY" isActive={currentPath === '/history'} onClick={() => navigate('/history')} />
+                    <NavItem icon={<User size={22} />} label="PROFILE" isActive={currentPath === '/profile'} onClick={() => navigate('/profile')} />
                 </nav>
             </aside>
 
@@ -319,10 +358,243 @@ const Dashboard = ({ onLogout, user }) => {
                         <div className="flex-1 w-full h-full">
                             {/* DASHBOARD OVERVIEW */}
                             {currentPath === '/dashboard' && (
-                                <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-204px)] p-10 flex flex-col items-center justify-center text-center">
-                                    <h3 className="text-xl font-bold text-slate-700">Security Overview</h3>
-                                    <p className="text-slate-500 mt-2">Ready to audit? Click "Scan Now" to detect misconfigurations.</p>
-                                </div>
+                                !hasHistory ? (
+                                    /* --- VIEW A: ONBOARDING (For New Users) --- */
+                                    <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                                        {/* Hero Welcome Card */}
+                                        <div className="bg-[#252F3E] rounded-[3rem] p-12 text-white relative overflow-hidden shadow-2xl border border-white/5">
+                                            <div className="relative z-10 max-w-2xl text-left">
+                                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FF9900]/20 border border-[#FF9900]/30 text-[#FF9900] text-[10px] font-black uppercase tracking-[0.2em] mb-6">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-[#FF9900] animate-pulse" />
+                                                    System Ready
+                                                </div>
+                                                <h2 className="text-[42px] font-black leading-tight mb-4 tracking-tight">
+                                                    Securing your Cloud <br/> starts with an <span className="text-[#FF9900]">Audit.</span>
+                                                </h2>
+                                                <p className="text-white/50 text-lg font-medium mb-10 leading-relaxed">
+                                                    CloudSentinel cross-references your AWS infrastructure against OWASP CNAS categories to identify critical misconfigurations.
+                                                </p>
+                                                <button 
+                                                    onClick={() => setShowScanModal(true)} 
+                                                    className="bg-[#FF9900] hover:bg-white hover:text-[#252F3E] text-white px-10 py-5 rounded-2xl font-black uppercase tracking-widest text-[13px] transition-all shadow-xl shadow-[#FF9900]/20 flex items-center gap-3 active:scale-95"
+                                                >
+                                                    <Play size={20} fill="currentColor" /> Initialize Security Scan
+                                                </button>
+                                            </div>
+                                            <Globe className="absolute -right-20 -bottom-20 text-white/5 w-[600px] h-[600px] pointer-events-none opacity-20" />
+                                        </div>
+
+                                        {/* 3-Step Implementation Guide */}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                            {[
+                                                { title: "Configuration", desc: "Input secure Boto3 credentials for read-only metadata access.", icon: <Database /> },
+                                                { title: "Automated Audit", desc: "Our engine triggers checks across S3, IAM, and VPC Networking.", icon: <Zap /> },
+                                                { title: "Risk Mitigation", desc: "Receive formatted reports with remediation steps for your findings.", icon: <ShieldCheck /> }
+                                            ].map((item, idx) => (
+                                                <div key={idx} className="bg-white border border-slate-200 p-8 rounded-[2.5rem] shadow-sm relative group transition-all hover:shadow-xl hover:-translate-y-1 text-left">
+                                                    <div className="absolute top-8 right-8 text-[40px] font-black text-slate-50 opacity-0 group-hover:opacity-100 transition-opacity">0{idx + 1}</div>
+                                                    <div className="bg-slate-50 w-14 h-14 rounded-2xl flex items-center justify-center text-[#FF9900] mb-6 border border-slate-100 group-hover:bg-[#FF9900] group-hover:text-white transition-colors">
+                                                        {item.icon}
+                                                    </div>
+                                                    <h4 className="text-[18px] font-black text-slate-800 mb-2 uppercase tracking-tight">{item.title}</h4>
+                                                    <p className="text-slate-500 font-medium text-[14px] leading-relaxed">{item.desc}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    /* --- VIEW B: ANALYTICS (For Returning Users) --- */
+                                    <div className="flex flex-col gap-6 pb-6">
+                                        {/* --- COMPACT TACTICAL EXECUTIVE HEADER --- */}
+                                        <div className="bg-white border border-slate-200 rounded-[1.5rem] shadow-sm overflow-hidden">
+                                            <div className="flex flex-col md:flex-row items-center min-h-[120px] w-full">
+                                                
+                                                {/* 1. SCORE ZONE (Left Column) */}
+                                                <div className="flex-1 flex items-center justify-center gap-4 px-10 py-6 w-full">
+                                                    <div className="relative flex items-center justify-center shrink-0">
+                                                        <svg className="w-16 h-16 transform -rotate-90">
+                                                            <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="5" fill="transparent" className="text-slate-50" />
+                                                            <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="5" fill="transparent" 
+                                                                strokeDasharray={175.8}
+                                                                strokeDashoffset={175.8 - (175.8 * Math.max(0, 100 - ((latestScan?.high_count * 10 || 0) + (latestScan?.med_count * 5 || 0)))) / 100}
+                                                                className={`${latestScan?.high_count > 0 ? 'text-red-500' : 'text-emerald-500'} transition-all duration-1000`} 
+                                                            />
+                                                        </svg>
+                                                        <span className="absolute text-[15px] font-black text-slate-800">
+                                                            {Math.max(0, 100 - ((latestScan?.high_count * 10 || 0) + (latestScan?.med_count * 5 || 0)))}%
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-left">
+                                                        <p className="text-[14px] font-black text-slate-700 uppercase tracking-[0.2em] mb-2 leading-none">Security Score</p>
+                                                        <h4 className={`text-[18px] font-black tracking-tight leading-none uppercase ${latestScan?.high_count > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                                            {latestScan?.high_count > 0 ? 'At Risk' : 'Healthy'}
+                                                        </h4>
+                                                    </div>
+                                                </div>
+
+                                                {/* SEPARATION LINE 1 */}
+                                                <div className="hidden md:block w-[1px] h-[120px] bg-slate-200"></div>
+
+                                                {/* 2. DYNAMIC SERVICE RISK ZONE (Middle Column - Spaced for Frames) */}
+                                                <div className="flex-[2.5] flex flex-col justify-center py-6 w-full bg-slate-50/30">
+                                                    <div className="mb-4">
+                                                        <p className="text-center text-[14px] font-black text-slate-700 uppercase tracking-[0.2em] leading-none">Service Security Distribution</p>
+                                                        <p className="text-center text-[13px] text-slate-700 font-normal my-2 tracking-normal leading-none">Counts per impacted domain (Single risks may affect multiple services)</p>
+                                                    </div>
+                                                    <div className="flex items-center justify-between w-full max-w-lg mx-auto">
+                                                        {[
+                                                            { label: 'S3', count: serviceCounts.S3 },
+                                                            { label: 'IAM', count: serviceCounts.IAM },
+                                                            { label: 'VPC', count: serviceCounts.VPC },
+                                                            { label: 'EC2', count: serviceCounts.EC2 },
+                                                            { label: 'EBS', count: serviceCounts.EBS }
+                                                        ].map((svc) => (
+                                                            <div key={svc.label} className="flex flex-col items-center">
+                                                                <div className={`min-w-[30px] h-[30px] flex items-center justify-center rounded-lg font-bold text-[18px] border transition-all duration-500 ${
+                                                                    svc.count > 0 
+                                                                    ? 'bg-red-50 border-red-200 text-red-600 shadow-sm shadow-red-100' 
+                                                                    : 'bg-emerald-50 border-emerald-200 text-emerald-600 shadow-sm shadow-emerald-100'
+                                                                }`}>
+                                                                    {svc.count}
+                                                                </div>
+                                                                <span className="text-[12px] font-bold text-slate-700 uppercase tracking-wider mt-2">{svc.label}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                {/* SEPARATION LINE 2 */}
+                                                <div className="hidden md:block w-[1px] h-[120px] bg-slate-200"></div>
+
+                                                {/* 3. AUDIT CONTEXT (Right Column) */}
+                                                <div className="flex-1 flex items-center justify-center gap-5 pl-2 pr-8 py-6 w-full text-left">
+                                                    <div className="bg-blue-50 p-3 rounded-2xl shrink-0 border border-blue-100/50">
+                                                        <Clock size={24} className="text-blue-600" />
+                                                    </div>
+                                                    <div className="flex flex-col justify-center">
+                                                        <p className="text-[14px] font-black text-blue-600 uppercase tracking-[0.2em] mb-2.5 leading-none">Last Scan</p>
+                                                        <h4 className="text-[14px] font-bold text-slate-800 leading-tight my-1">
+                                                            {latestScan?.start_time ? new Date(latestScan.start_time).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                                                        </h4>
+                                                        <div className="flex items-center gap-2 mt-1.5">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>
+                                                            <p className="text-[14px] text-slate-600 font-medium uppercase tracking-normal">
+                                                                {latestScan?.duration ? `${latestScan.duration.toFixed(2)}s` : '0.00s'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* 2. ANALYTICS CORE */}
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                            {/* Risk Profile Visualizer */}
+                                            <div className="bg-white border border-slate-200 p-10 rounded-[3.5rem] shadow-sm flex flex-col min-h-[480px] relative overflow-hidden">
+                                                <div className="flex justify-between items-start mb-10">
+                                                    <div>
+                                                        <h4 className="text-[16px] font-black uppercase tracking-[0.15em] text-slate-800 flex items-center gap-3">
+                                                            <PieIcon size={20} className="text-[#FF9900]" /> Risk Distribution
+                                                        </h4>
+                                                        <p className="text-slate-400 text-sm font-medium mt-1">Classification based on CVSS v3.1</p>
+                                                    </div>
+                                                    <div className="bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100">
+                                                        <span className="text-[11px] font-black text-slate-500 uppercase">Live Audit Data</span>
+                                                    </div>
+                                                </div>
+                                                
+                                                {(latestScan.high_count + latestScan.med_count + latestScan.low_count) > 0 ? (
+                                                    <div className="h-[300px] w-full mt-4">
+                                                        <ResponsiveContainer width="100%" height="100%">
+                                                            <PieChart>
+                                                                <Pie data={severityData} innerRadius={85} outerRadius={115} paddingAngle={10} dataKey="value" stroke="none">
+                                                                    {severityData.map((entry, index) => (
+                                                                        <Cell key={`cell-${index}`} fill={entry.name === 'High' ? '#EF4444' : entry.name === 'Medium' ? '#F59E0B' : '#10B981'} className="hover:opacity-80 transition-opacity cursor-pointer" />
+                                                                    ))}
+                                                                </Pie>
+                                                                <Tooltip contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', padding: '12px 20px' }} />
+                                                                <Legend verticalAlign="bottom" iconType="circle" wrapperStyle={{ paddingTop: '20px', fontWeight: 'bold', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }} />
+                                                            </PieChart>
+                                                        </ResponsiveContainer>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex-1 flex flex-col items-center justify-center animate-in zoom-in-95 duration-500">
+                                                        <div className="w-24 h-24 bg-emerald-50 rounded-[2rem] flex items-center justify-center mb-6 border border-emerald-100 shadow-xl shadow-emerald-500/10">
+                                                            <ShieldCheck size={48} className="text-emerald-500" />
+                                                        </div>
+                                                        <h5 className="text-[22px] font-black text-slate-800 uppercase tracking-tight">Environment Secure</h5>
+                                                        <p className="text-slate-400 font-medium max-w-[240px] mt-2">No misconfigurations found in the latest scan cycle.</p>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Tactical Response Card */}
+                                            <div className="bg-[#252F3E] rounded-[3.5rem] p-12 text-white flex flex-col justify-between shadow-2xl relative overflow-hidden group">
+                                                {/* Background Tech Decal */}
+                                                <Activity className="absolute -right-20 -bottom-20 text-white/[0.03] w-[450px] h-[450px] pointer-events-none rotate-12 transition-transform duration-1000 group-hover:rotate-0" />
+                                                
+                                                <div className="relative z-10">
+                                                    <div className="inline-flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-2 rounded-2xl mb-10 backdrop-blur-md">
+                                                    <div className="w-2 h-2 rounded-full bg-[#FF9900] animate-pulse" />
+                                                    <span className="text-[11px] font-black uppercase tracking-[0.2em] text-[#FF9900]">Critical Audit Pulse</span>
+                                                    </div>
+                                                    
+                                                    <h4 className="text-[38px] font-black leading-tight mb-6 tracking-tight">
+                                                        {(latestScan.high_count + latestScan.med_count + latestScan.low_count) === 0 
+                                                        ? "Zero Threats \nDetected" 
+                                                        : "Security Findings \nRequiring Action"}
+                                                    </h4>
+                                                    
+                                                    <p className="text-white/40 text-[18px] font-medium leading-relaxed max-w-sm">
+                                                        {(latestScan.high_count + latestScan.med_count + latestScan.low_count) === 0 
+                                                        ? "Infrastructure matches the Golden Image baseline. No drift detected."
+                                                        : `The scanner identified ${latestScan.high_count + latestScan.med_count + latestScan.low_count} vulnerabilities that violate OWASP CNAS protocols.`}
+                                                    </p>
+                                                </div>
+
+                                                <button onClick={() => navigate('/findings')} className="w-full bg-[#FF9900] hover:bg-white text-white hover:text-[#252F3E] py-6 rounded-3xl font-black uppercase tracking-[0.2em] text-[13px] transition-all duration-300 flex items-center justify-center gap-4 active:scale-95 mt-12 shadow-xl shadow-orange-500/20">
+                                                    Launch Security Review <ChevronRight size={20} strokeWidth={3} />
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* 3. SERVICE MAPPING GRID */}
+                                        <div className="bg-white border border-slate-200 p-10 rounded-[3rem] shadow-sm relative overflow-hidden">
+                                            <div className="flex items-center justify-between mb-8">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="bg-slate-900 p-3 rounded-2xl">
+                                                        <Database size={20} className="text-white" />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-[16px] font-black uppercase tracking-[0.1em] text-slate-800">Infrastructure Scope</h4>
+                                                        <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-0.5">Verified Monitoring Connectors</p>
+                                                    </div>
+                                                </div>
+                                                <div className="hidden md:flex gap-2">
+                                                    {['CNAS-1', 'CNAS-3', 'CNAS-6'].map(tag => (
+                                                        <span key={tag} className="px-3 py-1 bg-slate-50 border border-slate-100 rounded-lg text-[10px] font-black text-slate-400">{tag}</span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                                                {['S3 Storage', 'IAM Identity', 'VPC Network', 'EC2 Compute', 'EBS Volumes'].map((svc) => (
+                                                    <div key={svc} className="group bg-slate-50/50 border border-slate-100 p-5 rounded-[2rem] hover:bg-white hover:border-[#FF9900]/30 hover:shadow-lg transition-all duration-300">
+                                                        <div className="flex items-center justify-between mb-4">
+                                                            <div className="relative flex h-3 w-3">
+                                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                                                            </div>
+                                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter italic">Encrypted</span>
+                                                        </div>
+                                                        <span className="text-[14px] font-black text-slate-800 block mb-1">{svc}</span>
+                                                        <span className="text-[10px] font-bold text-emerald-600 uppercase">Status: 200 OK</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
                             )}
 
                             {/* FINDINGS PAGE (Now handles its own white box internally) */}
