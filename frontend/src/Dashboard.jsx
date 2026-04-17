@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 // Added RefreshCw for the scanning animation
-import { Clock, LayoutDashboard, Search, History as HistoryIcon, User, LogOut, Play, AlertCircle, RefreshCw, Rocket, 
+import { AlertTriangle, Clock, LayoutDashboard, Search, History as HistoryIcon, User, LogOut, Play, AlertCircle, RefreshCw, Rocket, 
     Database, Zap, ShieldCheck, Activity, ChevronRight, PieChart as PieIcon, Globe
  } from 'lucide-react'; 
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
@@ -93,6 +93,42 @@ const Dashboard = ({ onLogout, user }) => {
         { name: 'Medium', value: latestScan.med_count || 0 },
         { name: 'Low', value: latestScan.low_count || 0 },
     ].filter(d => d.value > 0) : [];
+
+    // Update this number as you add more detection logic to your backend
+    const TOTAL_RULES = 8; 
+
+    const calculateComplianceScore = () => {
+        if (!latestScan) return 100;
+        
+        // Total findings (count each unique misconfiguration once)
+        const totalFindings = (latestScan.high_count || 0) + 
+                            (latestScan.med_count || 0) + 
+                            (latestScan.low_count || 0);
+        
+        // Formula: ((Total Rules - Total Findings) / Total Rules) * 100
+        const score = ((TOTAL_RULES - totalFindings) / TOTAL_RULES) * 100;
+        
+        // Math.max ensures we never show a negative percentage if findings > rules
+        return Math.max(0, Math.round(score));
+    };
+
+    const currentScore = calculateComplianceScore();
+
+    const SEVERITY_ORDER = { 'HIGH': 1, 'MEDIUM': 2, 'LOW': 3 };
+
+    const sortedSeverityData = [...severityData].sort((a, b) => 
+        (SEVERITY_ORDER[a.name] || 99) - (SEVERITY_ORDER[b.name] || 99)
+    );
+
+    const [chartView, setChartView] = useState('severity'); // 'severity' or 'cnas'
+
+    const cnasData = latestScan ? [
+        { name: 'CNAS-1', value: findings.filter(f => f.category === 'CNAS-1').length },
+        { name: 'CNAS-3', value: findings.filter(f => f.category === 'CNAS-3').length },
+        { name: 'CNAS-6', value: findings.filter(f => f.category === 'CNAS-6').length },
+    ].filter(d => d.value > 0) : [];
+
+    const totalRisks = (latestScan?.high_count || 0) + (latestScan?.med_count || 0) + (latestScan?.low_count || 0);
 
     // --- DYNAMIC TITLES ---
     const pageContent = {
@@ -416,18 +452,19 @@ const Dashboard = ({ onLogout, user }) => {
                                                             <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="5" fill="transparent" className="text-slate-50" />
                                                             <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="5" fill="transparent" 
                                                                 strokeDasharray={175.8}
-                                                                strokeDashoffset={175.8 - (175.8 * Math.max(0, 100 - ((latestScan?.high_count * 10 || 0) + (latestScan?.med_count * 5 || 0)))) / 100}
-                                                                className={`${latestScan?.high_count > 0 ? 'text-red-500' : 'text-emerald-500'} transition-all duration-1000`} 
+                                                                /* Updated to use currentScore */
+                                                                strokeDashoffset={175.8 - (175.8 * currentScore) / 100}
+                                                                className={`${currentScore < 70 ? 'text-red-500' : currentScore < 90 ? 'text-amber-500' : 'text-emerald-500'} transition-all duration-1000`} 
                                                             />
                                                         </svg>
                                                         <span className="absolute text-[15px] font-black text-slate-800">
-                                                            {Math.max(0, 100 - ((latestScan?.high_count * 10 || 0) + (latestScan?.med_count * 5 || 0)))}%
+                                                            {currentScore}%
                                                         </span>
                                                     </div>
                                                     <div className="text-left">
                                                         <p className="text-[14px] font-black text-slate-700 uppercase tracking-[0.2em] mb-2 leading-none">Security Score</p>
-                                                        <h4 className={`text-[18px] font-black tracking-tight leading-none uppercase ${latestScan?.high_count > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                                                            {latestScan?.high_count > 0 ? 'At Risk' : 'Healthy'}
+                                                        <h4 className={`text-[18px] font-black tracking-tight leading-none uppercase ${currentScore < 70 ? 'text-red-600' : currentScore < 90 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                                                            {currentScore < 70 ? 'Critical' : currentScore < 90 ? 'Warning' : 'Healthy'}
                                                         </h4>
                                                     </div>
                                                 </div>
@@ -488,74 +525,199 @@ const Dashboard = ({ onLogout, user }) => {
                                         </div>
 
                                         {/* 2. ANALYTICS CORE */}
-                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-2">
                                             {/* Risk Profile Visualizer */}
-                                            <div className="bg-white border border-slate-200 p-10 rounded-[3.5rem] shadow-sm flex flex-col min-h-[480px] relative overflow-hidden">
-                                                <div className="flex justify-between items-start mb-10">
-                                                    <div>
-                                                        <h4 className="text-[16px] font-black uppercase tracking-[0.15em] text-slate-800 flex items-center gap-3">
-                                                            <PieIcon size={20} className="text-[#FF9900]" /> Risk Distribution
-                                                        </h4>
-                                                        <p className="text-slate-400 text-sm font-medium mt-1">Classification based on CVSS v3.1</p>
+                                            <div className="bg-white border border-slate-200 rounded-[1.5rem] shadow-sm flex flex-col min-h-[450px] relative overflow-hidden" tabIndex="-1">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div className="flex items-start gap-4 pt-6 pl-6">
+                                                        {/* 1. BIGGER ICON WITH PULSE ANIMATION */}
+                                                        <div className="relative mt-1">
+                                                            {/* The Pulsing Glow Effect */}
+                                                            <div className="absolute inset-0 bg-[#FF9900]/20 rounded-full blur-md animate-pulse scale-150" />
+                                                            
+                                                            {/* The Actual Icon */}
+                                                            <PieIcon 
+                                                                size={28} 
+                                                                className="text-[#FF9900] relative z-10" 
+                                                                strokeWidth={2.5}
+                                                            />
+                                                        </div>
+
+                                                        {/* 2. TEXT CONTAINER */}
+                                                        <div className="flex flex-col justify-center">
+                                                            <h4 className="text-[14px] font-black uppercase tracking-[0.15em] text-slate-700 leading-tight">
+                                                                Risk Distribution
+                                                            </h4>
+                                                            <p className="text-slate-500 text-[11px] font-semibold uppercase mt-1 tracking-[0.1em] leading-tight">
+                                                                {chartView === 'severity' ? 'By Severity Level' : 'By OWASP CNAS Category'}
+                                                            </p>
+                                                        </div>
                                                     </div>
-                                                    <div className="bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100">
-                                                        <span className="text-[11px] font-black text-slate-500 uppercase">Live Audit Data</span>
+
+                                                    {/* --- PROFESSIONAL TOGGLE SWITCH --- */}
+                                                    <div className="flex bg-slate-100 p-1 rounded-xl mt-6 mr-6 border border-slate-200">
+                                                        <button 
+                                                            onClick={() => setChartView('severity')}
+                                                            className={`tracking-wider px-5 py-1.5 rounded-lg text-[12px] font-bold uppercase transition-all ${chartView === 'severity' ? 'bg-white text-[#FF9900] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                                        >
+                                                            Severity
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => setChartView('cnas')}
+                                                            className={`tracking-wider px-5 py-1.5 rounded-lg text-[12px] font-bold uppercase transition-all ${chartView === 'cnas' ? 'bg-white text-[#FF9900] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                                        >
+                                                            CNAS
+                                                        </button>
                                                     </div>
                                                 </div>
-                                                
-                                                {(latestScan.high_count + latestScan.med_count + latestScan.low_count) > 0 ? (
-                                                    <div className="h-[300px] w-full mt-4">
+
+                                                {totalRisks > 0 ? (
+                                                    <div className="relative h-[320px] w-full [&_*:focus]:outline-none">
+                                                        {/* CENTRAL METRIC (Center of Donut) */}
+                                                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                                            <span className="text-[40px] font-semibold text-slate-800 leading-none">{totalRisks}</span>
+                                                            <span className="text-[12px] font-semibold text-slate-600 uppercase tracking-widest mt-1">Total Risks</span>
+                                                        </div>
+
                                                         <ResponsiveContainer width="100%" height="100%">
-                                                            <PieChart>
-                                                                <Pie data={severityData} innerRadius={85} outerRadius={115} paddingAngle={10} dataKey="value" stroke="none">
-                                                                    {severityData.map((entry, index) => (
-                                                                        <Cell key={`cell-${index}`} fill={entry.name === 'High' ? '#EF4444' : entry.name === 'Medium' ? '#F59E0B' : '#10B981'} className="hover:opacity-80 transition-opacity cursor-pointer" />
-                                                                    ))}
+                                                            <PieChart className="focus:outline-none">
+                                                                <Pie 
+                                                                    // 1. Point to your sorted data
+                                                                    data={chartView === 'severity' ? sortedSeverityData : cnasData} 
+                                                                    
+                                                                    // 2. INCREASE THESE (Original was 80/110)
+                                                                    innerRadius={110} 
+                                                                    outerRadius={140} 
+                                                                    
+                                                                    // 3. Move the center up slightly (default is 50%)
+                                                                    cy="55%" 
+                                                                    
+                                                                    paddingAngle={12} 
+                                                                    dataKey="value" 
+                                                                    stroke="none"
+                                                                    style={{ outline: 'none' }}
+                                                                    animationBegin={0}
+                                                                    animationDuration={1000}
+                                                                    // --- ADDED PERCENTAGE LABELS ---
+                                                                    labelLine={false} // Hides the connector lines for a cleaner look
+                                                                    label={({ cx, cy, midAngle, outerRadius, percent }) => {
+                                                                        const RADIAN = Math.PI / 180;
+                                                                        // Adjust the '1.2' to move the label further in or out
+                                                                        const radius = outerRadius + 15;
+                                                                        const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                                                                        const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+                                                                        return (
+                                                                            <text 
+                                                                                x={x} 
+                                                                                y={y} 
+                                                                                fill="#64748b" // slate-500
+                                                                                textAnchor={x > cx ? 'start' : 'end'} 
+                                                                                dominantBaseline="central"
+                                                                                className="text-[14px] font-semibold"
+                                                                            >
+                                                                                {`${(percent * 100).toFixed(0)}%`}
+                                                                            </text>
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    {/* Map over the sorted data to keep HIGH, MEDIUM, LOW order */}
+                                                                    {(chartView === 'severity' ? sortedSeverityData : cnasData).map((entry, index) => {
+                                                                        let color = '#CBD5E1';
+                                                                        if (chartView === 'severity') {
+                                                                            if (entry.name === 'High') color = '#EF4444';
+                                                                            if (entry.name === 'Medium') color = '#F59E0B';
+                                                                            if (entry.name === 'Low') color = '#10B981';
+                                                                        } else {
+                                                                            const cnasColors = ['#1E293B', '#FF9900', '#64748B'];
+                                                                            color = cnasColors[index % cnasColors.length];
+                                                                        }
+                                                                        return <Cell key={`cell-${index}`} fill={color} />;
+                                                                    })}
                                                                 </Pie>
-                                                                <Tooltip contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', padding: '12px 20px' }} />
-                                                                <Legend verticalAlign="bottom" iconType="circle" wrapperStyle={{ paddingTop: '20px', fontWeight: 'bold', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }} />
+
+                                                                <Tooltip 
+                                                                    contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', padding: '10px 15px' }}
+                                                                />
+
+                                                                <Legend 
+                                                                    verticalAlign="bottom" 
+                                                                    align="center"
+                                                                    iconType="circle"
+                                                                    // Keep bottom negative to stay low, but remove paddingBottom which can cause overlap
+                                                                    wrapperStyle={{ bottom: -45, left: 35 }} 
+                                                                    formatter={(value) => (
+                                                                        <span 
+                                                                            className="text-[14px] font-medium text-slate-600 uppercase tracking-widest ml-3 mr-12"
+                                                                            style={{ display: 'inline-block' }} // Ensures margins are respected perfectly
+                                                                        >
+                                                                            {value}
+                                                                        </span>
+                                                                    )}
+                                                                />
                                                             </PieChart>
                                                         </ResponsiveContainer>
                                                     </div>
                                                 ) : (
                                                     <div className="flex-1 flex flex-col items-center justify-center animate-in zoom-in-95 duration-500">
-                                                        <div className="w-24 h-24 bg-emerald-50 rounded-[2rem] flex items-center justify-center mb-6 border border-emerald-100 shadow-xl shadow-emerald-500/10">
+                                                        <div className="w-24 h-24 bg-emerald-50 rounded-[2rem] flex items-center justify-center mb-6 border border-emerald-100 shadow-xl">
                                                             <ShieldCheck size={48} className="text-emerald-500" />
                                                         </div>
                                                         <h5 className="text-[22px] font-black text-slate-800 uppercase tracking-tight">Environment Secure</h5>
-                                                        <p className="text-slate-400 font-medium max-w-[240px] mt-2">No misconfigurations found in the latest scan cycle.</p>
+                                                        <p className="text-slate-400 font-medium max-w-[240px] mt-2 text-center">No misconfigurations found in the latest scan cycle.</p>
                                                     </div>
                                                 )}
                                             </div>
 
                                             {/* Tactical Response Card */}
-                                            <div className="bg-[#252F3E] rounded-[3.5rem] p-12 text-white flex flex-col justify-between shadow-2xl relative overflow-hidden group">
-                                                {/* Background Tech Decal */}
-                                                <Activity className="absolute -right-20 -bottom-20 text-white/[0.03] w-[450px] h-[450px] pointer-events-none rotate-12 transition-transform duration-1000 group-hover:rotate-0" />
-                                                
-                                                <div className="relative z-10">
-                                                    <div className="inline-flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-2 rounded-2xl mb-10 backdrop-blur-md">
-                                                    <div className="w-2 h-2 rounded-full bg-[#FF9900] animate-pulse" />
-                                                    <span className="text-[11px] font-black uppercase tracking-[0.2em] text-[#FF9900]">Critical Audit Pulse</span>
-                                                    </div>
-                                                    
-                                                    <h4 className="text-[38px] font-black leading-tight mb-6 tracking-tight">
-                                                        {(latestScan.high_count + latestScan.med_count + latestScan.low_count) === 0 
-                                                        ? "Zero Threats \nDetected" 
-                                                        : "Security Findings \nRequiring Action"}
-                                                    </h4>
-                                                    
-                                                    <p className="text-white/40 text-[18px] font-medium leading-relaxed max-w-sm">
-                                                        {(latestScan.high_count + latestScan.med_count + latestScan.low_count) === 0 
-                                                        ? "Infrastructure matches the Golden Image baseline. No drift detected."
-                                                        : `The scanner identified ${latestScan.high_count + latestScan.med_count + latestScan.low_count} vulnerabilities that violate OWASP CNAS protocols.`}
-                                                    </p>
-                                                </div>
+                                            <div className="bg-[#252F3E] rounded-[1.5rem] p-8 text-white flex flex-col justify-between shadow-2xl relative overflow-hidden group min-h-[450px]">
+    {/* Background Tech Decal */}
+    <Activity className="absolute -right-20 -bottom-20 text-white/[0.03] w-[450px] h-[450px] pointer-events-none rotate-12 transition-transform duration-1000 group-hover:rotate-0" />
+    
+    <div className="relative z-10">
+        {/* Audit Pulse Badge */}
+        <div className="inline-flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-3 rounded-2xl mb-5 backdrop-blur-md">
+            <div className="w-2 h-2 rounded-full bg-[#FF9900] animate-pulse shadow-[0_0_10px_#FF9900]" />
+            <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#FF9900]">Critical Audit Pulse</span>
+        </div>
+        
+        {/* Headline */}
+        <h4 className="text-[25px] font-bold uppercase leading-tight mb-2 mx-1 tracking-wider text-white">
+            {(latestScan.high_count + latestScan.med_count + latestScan.low_count) === 0 
+                ? <>Zero Threats Detected</> 
+                : <>Security Findings Requiring Action</>
+            }
+        </h4>
+        
+        {/* Intelligence Paragraph */}
+        <p className="text-white/60 text-[17px] font-normal leading-relaxed tracking-wide mx-1 mb-8">
+            {(latestScan.high_count + latestScan.med_count + latestScan.low_count) === 0 
+                ? "Infrastructure matches the Golden Image baseline. No drift detected."
+                : `The scanner identified ${latestScan.high_count + latestScan.med_count + latestScan.low_count} environmental deltas that violate the established SSDLC security protocols.`}
+        </p>
 
-                                                <button onClick={() => navigate('/findings')} className="w-full bg-[#FF9900] hover:bg-white text-white hover:text-[#252F3E] py-6 rounded-3xl font-black uppercase tracking-[0.2em] text-[13px] transition-all duration-300 flex items-center justify-center gap-4 active:scale-95 mt-12 shadow-xl shadow-orange-500/20">
-                                                    Launch Security Review <ChevronRight size={20} strokeWidth={3} />
-                                                </button>
-                                            </div>
+        {/* --- NEW REMEDIATION ALERT SECTION --- */}
+        {(latestScan.high_count + latestScan.med_count + latestScan.low_count) > 0 && (
+            <div className="bg-[#FF9900]/10 border border-[#FF9900]/30 rounded-2xl p-5 backdrop-blur-sm animate-in fade-in slide-in-from-bottom-4 duration-700">
+                <div className="flex items-center gap-3 mb-2">
+                    <AlertTriangle size={18} className="text-[#FF9900]" />
+                    <span className="text-[12px] font-bold uppercase tracking-widest text-[#FF9900]">Remediation Required</span>
+                </div>
+                <p className="text-[13px] text-white/80 leading-relaxed font-normal tracking-wide">
+                    Manual intervention is necessary to synchronize the infrastructure back to the <span className="text-white font-bold">Secure Baseline</span>.
+                </p>
+            </div>
+        )}
+    </div>
+
+    {/* Primary Action Button */}
+    <button 
+        onClick={() => navigate('/findings')} 
+        className="w-full bg-[#FF9900] hover:bg-[#E68A00] text-white py-6 rounded-3xl font-black uppercase tracking-[0.2em] text-[13px] transition-all duration-300 flex items-center justify-center gap-4 active:scale-95 mt-8 mb-2 shadow-xl shadow-orange-950/20"
+    >
+        Analyze Logs for Remediation <ChevronRight size={20} strokeWidth={3} />
+    </button>
+</div>
                                         </div>
 
                                         {/* 3. SERVICE MAPPING GRID */}

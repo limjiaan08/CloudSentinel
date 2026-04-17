@@ -40,3 +40,16 @@
 .read-the-docs {
   color: #888;
 }
+
+.recharts-wrapper:focus,
+.recharts-surface:focus,
+.recharts-surface:focus-visible,
+svg:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.recharts-wrapper *:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
