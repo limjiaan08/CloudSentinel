@@ -167,7 +167,7 @@ def verify_reset_token(token):
     serializer = get_serializer()
     try:
         # TEST: Use 5 for testing, 1800 (30 mins) for production
-        MAX_AGE = 5 
+        MAX_AGE = 1800
         email = serializer.loads(token, salt='password-reset-salt', max_age=MAX_AGE)
         return jsonify({"valid": True, "email": email}), 200
     except SignatureExpired:
@@ -182,7 +182,7 @@ def reset_password(token):
     
     try:
         # MUST MATCH the MAX_AGE in verify_reset_token
-        MAX_AGE = 5 
+        MAX_AGE = 1800 
         email = serializer.loads(token, salt='password-reset-salt', max_age=MAX_AGE)
     except SignatureExpired:
         return jsonify({"error": "The reset link has expired. Please request a new one."}), 400

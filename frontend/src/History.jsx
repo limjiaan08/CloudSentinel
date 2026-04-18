@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-    Activity, Clock, ExternalLink, ChevronDown, Filter as FilterIcon, Search, Loader2 
+    Activity, Clock, ExternalLink, ChevronDown, Filter as FilterIcon, Search, Loader2, 
+    HistoryIcon
 } from 'lucide-react';
 
 const History = ({ user }) => {
@@ -219,16 +220,47 @@ const History = ({ user }) => {
                 </>
             ) : (
                 <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-208px)] p-10 flex flex-col items-center justify-center text-center">
-                    <div className="bg-slate-50 p-8 rounded-full mb-6 border border-slate-100">
-                        <Search size={60} className="text-slate-300" />
+      
+                    {/* STRUCTURED ICON COMPOSITION */}
+                    <div className="relative mb-10">
+                        {/* Ambient Glow */}
+                        <div className="absolute inset-0 bg-slate-100 rounded-full blur-3xl opacity-60 scale-150" />
+                        
+                        <div className="relative z-10 flex items-center justify-center">
+                        {/* Main Icon Background - Soft Square with History Icon */}
+                        <div className="bg-slate-50 border border-slate-200 p-6 rounded-[1.5rem] relative shadow-inner">
+                            <HistoryIcon
+                            className="text-slate-500" 
+                            size={100} 
+                            strokeWidth={1.5} 
+                            />
+                            
+                            {/* High-Contrast Search Overlay */}
+                            <div className="absolute -bottom-6 -right-6 bg-white p-4 rounded-[1.5rem] shadow-lg border border-slate-100">
+                            <Search 
+                                className="text-[#FF9900]" 
+                                size={40} 
+                                strokeWidth={2} 
+                            />
+                            </div>
+                        </div>
+                        </div>
                     </div>
-                    <h3 className="text-[20px] font-black text-slate-800 uppercase tracking-tight">No History Recorded</h3>
-                    <p className="text-slate-500 max-w-[340px] text-[15px] mt-3 font-medium leading-relaxed">
-                        Your security audit logs are empty. Start a scan to monitor your AWS environment.
+
+                    {/* Typography matched to Findings Style */}
+                    <h3 className="text-[25px] font-bold text-slate-900 uppercase tracking-widest">
+                        NO SCAN HISTORY RECORDED
+                    </h3>
+                    
+                    <p className="text-slate-600 mt-4 max-w-[550px] font-normal text-[17px] leading-relaxed tracking-wide">
+                        Your security audit logs are currently empty. <br/> 
+                        Initialize a scan to begin tracking your AWS environmental history.
                     </p>
+
+                    {/* Button matched to Findings Style */}
                     <button 
                         onClick={() => navigate('/dashboard')}
-                        className="mt-8 px-10 py-4 bg-slate-900 text-white font-black rounded-2xl shadow-xl hover:bg-slate-800 transition-all active:scale-95 text-[13px] tracking-widest uppercase"
+                        className="mt-8 px-10 py-4 bg-[#FF9900] text-white font-bold rounded-2xl shadow-xl hover:bg-[#E68A00] transition-all active:scale-95 text-[15px] tracking-widest uppercase"
                     >
                         Initiate Audit
                     </button>

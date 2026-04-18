@@ -1,6 +1,6 @@
 import uuid
 from . import db
-from sqlalchemy import Column, String, Boolean, Text, ForeignKey
+from sqlalchemy import Column, String, Boolean, Text, ForeignKey, Integer
 from sqlalchemy.orm import relationship
 
 class AWSConfig(db.Model):
@@ -21,6 +21,8 @@ class S3Config(db.Model):
     config_id = Column(String(36), ForeignKey('aws_config.config_id'), primary_key=True)
     is_public = Column(Boolean, default=False)
     encryption_enabled = Column(Boolean, default=False)
+    # NEW: For RULE-S3-03 (CNAS-1)
+    versioning_enabled = Column(Boolean, default=False)
 
 class IAMConfig(db.Model):
     __tablename__ = 'iam_config' 
@@ -28,6 +30,8 @@ class IAMConfig(db.Model):
     permissions = Column(Text, nullable=True)
     mfa_enabled = Column(Boolean, default=False)
     password_policy_strength = Column(String(50), nullable=True)
+    # NEW: For RULE-IAM-04 (CNAS-3)
+    key_age_days = Column(Integer, default=0)
 
 class VPCConfig(db.Model):
     __tablename__ = 'vpc_config' 
@@ -40,6 +44,8 @@ class EC2Config(db.Model):
     config_id = Column(String(36), ForeignKey('aws_config.config_id'), primary_key=True)
     security_groups = Column(Text, nullable=True)
     open_ingress_rules = Column(Text, nullable=True)
+    # NEW: For RULE-EC2-02 (CNAS-1)
+    imds_version = Column(String(10), default='v1')
 
 class EBSConfig(db.Model):
     __tablename__ = 'ebs_config' 
