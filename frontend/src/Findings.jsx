@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { AlertCircle, ShieldCheck, Loader2, Filter as FilterIcon, ChevronDown, Clock, Search, ArrowLeft, HistoryIcon } from 'lucide-react';
+import { Check, Database, FileText, AlertCircle, ShieldCheck, Loader2, Filter as FilterIcon, ChevronDown, Clock, Search, ArrowLeft, HistoryIcon } from 'lucide-react';
 import axios from 'axios';
 
 const Findings = ({ scanId: propScanId, user }) => { 
@@ -115,15 +115,47 @@ const Findings = ({ scanId: propScanId, user }) => {
   if (!hasHistoryRecord) {
     return (
       <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-208px)] p-10 flex flex-col items-center justify-center text-center">
-        <div className="bg-slate-50 p-8 rounded-full mb-6 border border-slate-100">
-          <Search className="text-slate-300" size={60} />
+        
+        {/* STRUCTURED ICON COMPOSITION */}
+        <div className="relative mb-10">
+          {/* Ambient Glow */}
+          <div className="absolute inset-0 bg-slate-100 rounded-full blur-3xl opacity-60 scale-150" />
+          
+          <div className="relative z-10 flex items-center justify-center">
+            {/* Main Icon Background - Soft Square with Deep Slate Icon */}
+            <div className="bg-slate-50 border border-slate-200 p-6 rounded-[1.5rem] relative shadow-inner">
+              <FileText
+                className="text-slate-500" 
+                size={100} 
+                strokeWidth={1.5} 
+              />
+              
+              {/* High-Contrast Search Overlay */}
+              <div className="absolute -bottom-6 -right-6 bg-white p-4 rounded-[1.5rem] shadow-lg border border-slate-100">
+                <Search 
+                  className="text-[#FF9900]" 
+                  size={40} 
+                  strokeWidth={2} 
+                />
+              </div>
+            </div>
+          </div>
         </div>
-        <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">No Scan Entry Found</h3>
-        <p className="text-slate-500 mt-3 max-w-sm font-medium leading-relaxed">
-          It looks like you haven't started a security audit yet.
+
+        <h3 className="text-[25px] font-bold text-slate-900 uppercase tracking-widest">
+          NO FINDINGS AVAILABLE
+        </h3>
+        
+        <p className="text-slate-600 mt-4 max-w font-normal text-[17px] leading-relaxed tracking-wide">
+          It looks like you haven't started a security audit yet. <br/>
+          Return to dashboard and initialize a security audit to generate findings.
         </p>
-        <button onClick={() => navigate('/dashboard')} className="mt-8 px-10 py-4 bg-slate-900 text-white font-black rounded-2xl shadow-xl hover:bg-slate-800 transition-all active:scale-95 text-[13px] tracking-widest uppercase">
-          Return to Dashboard
+
+        <button 
+          onClick={() => navigate('/dashboard')}
+          className="mt-8 px-10 py-4 bg-[#FF9900] text-white font-bold rounded-2xl shadow-xl hover:bg-[#E68A00] transition-all active:scale-95 text-[15px] tracking-widest uppercase"
+        >
+          Initiate Audit
         </button>
       </div>
     );
@@ -133,12 +165,30 @@ const Findings = ({ scanId: propScanId, user }) => {
   if (findings.length === 0) {
     return (
       <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-220px)] p-20 flex flex-col items-center justify-center text-center">
-        <div className="bg-green-50 p-8 rounded-full mb-6 border border-green-100">
-          <ShieldCheck className="text-green-500" size={60} />
+        
+        {/* STRUCTURED SUCCESS COMPOSITION */}
+        <div className="relative mb-6">
+          {/* Soft Green Glow */}
+          <div className="absolute inset-0 bg-emerald-50 rounded-full blur-3xl opacity-60 scale-150" />
+          
+          <div className="relative z-10 flex items-center justify-center">
+            {/* Main Icon Background - Soft Square with Shield */}
+            <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-[1.5rem] relative shadow-inner">
+              <ShieldCheck
+                className="text-emerald-500" 
+                size={100} 
+                strokeWidth={1.5} 
+              />
+            </div>
+          </div>
         </div>
-        <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">No Misconfigurations Detected</h3>
-        <p className="text-slate-500 mt-3 max-w-sm font-medium leading-relaxed">
-          Scan complete! Your AWS environment is currently secure and follows all OWASP CNAS best practices.
+
+        <h3 className="text-[25px] font-bold text-slate-900 uppercase tracking-widest">
+          ENVIRONMENT SECURE
+        </h3>
+        
+        <p className="text-slate-600 mt-4 max-w-[450px] font-normal text-[17px] leading-relaxed tracking-wide">
+          Scan complete. Your AWS infrastructure is currently aligned with <span className="text-emerald-600 font-bold">OWASP CNAS</span> best practices. No critical misconfigurations were detected.
         </p>
       </div>
     );
@@ -320,7 +370,7 @@ const Findings = ({ scanId: propScanId, user }) => {
                     </div>
                   </td>
                   <td className="px-8 py-7 text-center">
-                    <span className={`inline-block px-3 py-1 rounded-md border text-[13px] font-black uppercase tracking-wider ${getServiceStyle(item.service)} shadow-sm transition-transform duration-200 group-hover:scale-105`}>
+                    <span className={`inline-block px-3 py-1 rounded-md border text-[14px] font-bold uppercase tracking-wider ${getServiceStyle(item.service)} shadow-sm transition-transform duration-200 group-hover:scale-105`}>
                       {item.service}
                     </span>
                   </td>
