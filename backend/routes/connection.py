@@ -60,32 +60,27 @@ def verify_aws_connection():
 @connection_bp.route('/cancel-scan/<scan_id>', methods=['POST'])
 def cancel_scan(scan_id):
     try:
-        # Use session.get for modern SQLAlchemy
-        scan = db.session.get(Scan, scan_id)
-        if not scan: 
-            return jsonify({"error": "Scan record not found"}), 404
+        # 🔥 STEP 1: Use FOR UPDATE to lock the row immediately
+        scan = db.session.query(Scan).filter_by(scan_id=scan_id).with_for_update().first()
+        
+        if not scan:
+            return jsonify({"error": "Scan not found"}), 404
 
-        # 1. Update the Scan Status to CANCELLED
+        # 🔥 STEP 2: Update status
         scan.scan_status = 'CANCELLED'
         scan.end_time = None
         scan.duration = None
 
-        # 2. PURGE RAW CONFIGS: Delete AWSConfig entries 
-        # (This ensures no "ghost" resources stay in the DB)
-        AWSConfig.query.filter_by(scan_id=scan_id).delete()
-
-        # 3. PURGE RESULTS: Delete the analysis results
-        res_header = Result.query.filter_by(scan_id=scan_id).first()
-        if res_header:
-            # Delete items first due to Foreign Key, then the header
-            ResultItem.query.filter_by(result_id=res_header.result_id).delete()
-            db.session.delete(res_header)
-        
+        # 🔥 STEP 3: Commit immediately
         db.session.commit()
-        print(f"🛑 Scan {scan_id} cancelled and data purged.")
-        return jsonify({"status": "success", "message": "Scan cancelled and data wiped"}), 200
+
+        # 🔥 STEP 4: Clear session cache globally
+        db.session.remove()   # <-- stronger than expire_all()
+
+        print(f"🛑 Scan {scan_id} marked as CANCELLED in DB")
+
+        return jsonify({"status": "success"}), 200
 
     except Exception as e:
         db.session.rollback()
-        print(f"❌ Cancel Error: {str(e)}")
         return jsonify({"error": str(e)}), 500

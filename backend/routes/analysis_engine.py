@@ -88,7 +88,7 @@ def run_analysis(scan_id, target_model="Vuln"):
                 add_finding(header.config_id, "RULE-IAM-02", f"IAM User ({header.resource_name})")
             
             # RULE-IAM-04: Stale Access Keys
-            if hasattr(detail, 'key_age_days') and detail.key_age_days > 90:
+            if hasattr(detail, 'key_age_days') and detail.key_age_days > 7:
                 add_finding(header.config_id, "RULE-IAM-04", f"Stale Access Keys ({header.resource_name})")
                 
         # B. Check IAM Roles (Flags the alert you see in your console)

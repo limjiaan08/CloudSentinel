@@ -105,36 +105,46 @@ def fetch_config():
 
         # --- 3a. IAM User (Strict MFA Detection for Current User) ---
         try:
-            # 1. Fetch tags to see why the match might be failing
             u_tags = {t['Key']: t['Value'] for t in iam_client.list_user_tags(UserName=iam_user_name).get('Tags', [])}
             user_tag_value = str(u_tags.get('SecurityModel', '')).strip()
 
-            # 2. DEBUG: This will show you exactly what is happening in the console
             print(f"      [DEBUG] IAM User: {iam_user_name} | Tag Found: '{user_tag_value}' | Searching for: '{target_tag}'")
 
-            # 3. Proceed if tags match OR if this is the user we are specifically auditing
             if user_tag_value == target_tag:
-                # Key Age Logic
                 keys = iam_client.list_access_keys(UserName=iam_user_name).get('AccessKeyMetadata', [])
+                
+                # --- NEW CONSOLE MESSAGE ---
+                print(f"      [🔍] Checking {len(keys)} Access Keys for staleness...")
+
                 max_age = 0
                 for k in keys:
-                    age = (get_my_time() - k['CreateDate'].replace(tzinfo=None)).days
+                    # Heartbeat check
+                    if check_and_abort(): return jsonify({"status": "cancelled"}), 200
+                    
+                    create_date = k['CreateDate'].replace(tzinfo=None)
+                    age = (get_my_time() - create_date).days
+                    
+                    # --- NEW CONSOLE MESSAGE PER KEY ---
+                    status = "STALE" if age > 7 else "VALID"
+                    print(f"      [Key: {k['AccessKeyId']}] Age: {age} days | Status: {status}")
+                    
                     max_age = max(max_age, age)
                 
-                # MFA Check - This is the core logic you need
+                # Summary message
+                print(f"      [✅] Final Max Key Age for {iam_user_name}: {max_age} days")
+
                 mfa_devices = iam_client.list_mfa_devices(UserName=iam_user_name).get('MFADevices', [])
                 mfa_status = len(mfa_devices) > 0
                 
                 print(f"      [DEBUG] User MFA Check -> Devices: {len(mfa_devices)} | Detected Enabled: {mfa_status}")
 
-                # Save the finding
                 user_header = AWSConfig(scan_id=scan_id, resource_name=f"IAM User: {iam_user_name}", resource_type='IAM_USER')
                 db.session.add(user_header)
                 db.session.flush()
                 
                 db.session.add(IAMConfig(
                     config_id=user_header.config_id, 
-                    mfa_enabled=mfa_status, # This will be False for your 'Vuln' user
+                    mfa_enabled=mfa_status,
                     key_age_days=max_age
                 ))
             else:

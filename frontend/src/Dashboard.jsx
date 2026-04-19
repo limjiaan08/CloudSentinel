@@ -391,7 +391,7 @@ const Dashboard = ({ onLogout, user }) => {
                         </div>
 
                         {/* --- DYNAMIC CONTAINER --- */}
-                        <div className="flex-1 w-full h-full min-h-screen justify-center items-center">
+                        <div className="flex-1 w-full h-full min-h-[calc(100vh-208px)] justify-center items-center">
                             {/* DASHBOARD OVERVIEW */}
                             {currentPath === '/dashboard' && (
                                 !hasHistory ? (
@@ -640,28 +640,6 @@ const Dashboard = ({ onLogout, user }) => {
                                                                     style={{ outline: 'none' }}
                                                                     animationBegin={0}
                                                                     animationDuration={1000}
-                                                                    // --- ADDED PERCENTAGE LABELS ---
-                                                                    labelLine={false} // Hides the connector lines for a cleaner look
-                                                                    label={({ cx, cy, midAngle, outerRadius, percent }) => {
-                                                                        const RADIAN = Math.PI / 180;
-                                                                        // Adjust the '1.2' to move the label further in or out
-                                                                        const radius = outerRadius + 15;
-                                                                        const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                                                                        const y = cy + radius * Math.sin(-midAngle * RADIAN);
-
-                                                                        return (
-                                                                            <text 
-                                                                                x={x} 
-                                                                                y={y} 
-                                                                                fill="#475569" // slate-500
-                                                                                textAnchor={x > cx ? 'start' : 'end'} 
-                                                                                dominantBaseline="central"
-                                                                                className="text-[14px] font-semibold"
-                                                                            >
-                                                                                {`${(percent * 100).toFixed(0)}%`}
-                                                                            </text>
-                                                                        );
-                                                                    }}
                                                                 >
                                                                     {/* Map over the sorted data to keep HIGH, MEDIUM, LOW order */}
                                                                     {(chartView === 'severity' ? sortedSeverityData : cnasData).map((entry, index) => {
@@ -755,7 +733,7 @@ const Dashboard = ({ onLogout, user }) => {
                                                 {/* Primary Action Button */}
                                                 <button 
                                                     onClick={() => navigate('/findings')} 
-                                                    className="w-full bg-[#FF9900] hover:bg-[#E68A00] text-white py-6 rounded-3xl font-bold uppercase tracking-[0.2em] text-[14px] transition-all duration-300 flex items-center justify-center gap-4 active:scale-95 mt-8 mb-2 shadow-xl shadow-orange-950/20"
+                                                    className="relative z-10 w-full bg-[#FF9900] hover:bg-[#E68A00] text-white py-6 rounded-3xl font-bold uppercase tracking-[0.2em] text-[14px] transition-all duration-300 flex items-center justify-center gap-4 active:scale-95 mt-8 mb-2 shadow-xl shadow-orange-950/20"
                                                 >
                                                     Analyze Findings for Remediation <ChevronRight size={20} strokeWidth={3} />
                                                 </button>

@@ -26,35 +26,28 @@ const Findings = ({ scanId: propScanId, user }) => {
         const storedUser = JSON.parse(localStorage.getItem('user'));
         const uid = user?.user_id || user?.id || storedUser?.user_id || storedUser?.id;
         
-        if (!uid) {
-          console.warn("No UID available yet.");
+        if (!uid) return;
+
+        // 1. ALWAYS fetch history to find the most recent COMPLETED scan
+        // This ensures we ignore any 'CANCELLED' scans without needing a refresh
+        const historyRes = await axios.get(`http://localhost:5000/api/scan-history/${uid}`);
+        const validScans = historyRes.data.scans.filter(s => s.scan_status === 'COMPLETED');
+
+        if (!validScans || validScans.length === 0) {
+          setHasHistoryRecord(false);
+          setFindings([]);
+          setLoading(false);
           return;
         }
 
-        let currentId = activeScanId;
+        // 2. Resolve ID: Priority to location state (from History page), 
+        // fallback to validScans[0] (the truly latest completed scan)
+        const currentId = location.state?.selectedScanId || validScans[0].scan_id;
+        
+        setActiveScanId(currentId);
+        setHasHistoryRecord(true);
 
-        // 1. Resolve "latest" if we don't have a specific UUID
-        if (currentId === "latest") {
-          const historyRes = await axios.get(`http://localhost:5000/api/scan-history/${uid}`);
-          const validScans = historyRes.data.scans.filter(s => s.scan_status === 'COMPLETED');
-
-        if (validScans && validScans.length > 0) {
-            currentId = validScans[0].scan_id; // Grab the truly latest successful ID
-            setActiveScanId(currentId);
-            setHasHistoryRecord(true);
-        } else {
-            // If they have scans but none are COMPLETED, show the "No Scan Entry" screen
-            setHasHistoryRecord(false);
-            setFindings([]);
-            setLoading(false);
-            return; 
-        }
-        } else {
-          // If we already have a UUID, it implies history exists
-          setHasHistoryRecord(true);
-        }
-
-        // 2. Fetch Results for the resolved ID
+        // 3. Fetch Results for the resolved ID
         const response = await axios.get(`http://localhost:5000/api/scan-results/${currentId}`, {
           params: { user_id: uid } 
         });
@@ -72,7 +65,8 @@ const Findings = ({ scanId: propScanId, user }) => {
     };
 
     fetchFindings();
-  }, [user, propScanId, passedScanId]); // Dependencies updated for stability
+    // Adding location.key forces the effect to run every time the URL/View changes
+  }, [user, propScanId, passedScanId, location.key]);
 
   // --- FILTERING ---
   const filteredData = findings.filter(item => {
