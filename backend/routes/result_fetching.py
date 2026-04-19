@@ -13,23 +13,20 @@ def get_scan_results(scan_id):
         # --- 1. HANDLE "LATEST" LOGIC ---
         if scan_id == "latest":
             if not user_id:
-                return jsonify({"error": "user_id is required to fetch latest scan"}), 400
+                return jsonify({"error": "user_id is required"}), 400
 
-            # Find the most recent COMPLETED scan for this specific user
-            latest_scan = Scan.query.filter_by(user_id=user_id, scan_status='COMPLETED')\
-                              .order_by(Scan.start_time.desc()).first()
+            # CRITICAL: We skip CANCELLED/FAILED and find the absolute latest SUCCESS
+            latest_completed_scan = Scan.query.filter_by(user_id=user_id, scan_status='COMPLETED')\
+                                         .order_by(Scan.start_time.desc()).first()
             
-            if not latest_scan:
-                return jsonify([]), 200
+            if not latest_completed_scan:
+                # Only return 404 if the user has NEVER completed a single scan
+                return jsonify({"message": "No historical completed scans found"}), 404
             
-            target_scan_id = latest_scan.scan_id
+            target_scan_id = latest_completed_scan.scan_id
         else:
-            # If a specific UUID was passed from History page
+            # If a specific UUID is passed (from History), we use it directly
             target_scan_id = scan_id
-
-        scan_meta = Scan.query.get(target_scan_id)
-        if not scan_meta or scan_meta.scan_status != 'COMPLETED':
-            return jsonify([]), 200 # Return empty list so React shows "No Entry"
 
         # --- 2. SECURITY & DATA VALIDATION ---
         # Fetch the scan object to verify ownership and existence
