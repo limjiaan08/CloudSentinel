@@ -1001,7 +1001,7 @@ const Dashboard = ({ onLogout, user }) => {
                                         </div>
                                     </div>
                                     <div>
-                                        <h2 className="text-[28px] font-extrabold text-slate-900 tracking-tight leading-none">Scanning in Progress</h2>
+                                        <h2 className="text-[28px] font-bold text-slate-900 tracking-tight leading-none">Scanning in Progress</h2>
                                         <div className="flex items-center gap-2 mt-2">
                                             <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
                                             <p className="text-[15px] text-slate-500 font-bold uppercase tracking-wider">

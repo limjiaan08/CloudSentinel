@@ -81,7 +81,7 @@ def run_analysis(scan_id, target_model="Vuln"):
     for header, detail in iam_data:
         if is_cancelled(): return get_my_time(), 0.0
         
-        # A. Check IAM Users (This catches your 'Vuln' User)
+        # A. Check IAM Users 
         if header.resource_type == 'IAM_USER':
             # Use a broad falsy check to catch False, 0, or NULL
             if not detail.mfa_enabled:
@@ -91,13 +91,13 @@ def run_analysis(scan_id, target_model="Vuln"):
             if hasattr(detail, 'key_age_days') and detail.key_age_days > 7:
                 add_finding(header.config_id, "RULE-IAM-04", f"Stale Access Keys ({header.resource_name})")
                 
-        # B. Check IAM Roles (Flags the alert you see in your console)
+        # B. Check IAM Roles 
         elif header.resource_type == 'IAM_ROLE':
             perms = json.loads(detail.permissions) if detail.permissions else []
             if 'AdministratorAccess' in perms:
                 add_finding(header.config_id, "RULE-IAM-01", header.resource_name)
                 
-        # C. Check IAM Global (Flags the Password Policy alert you see)
+        # C. Check IAM Global 
         elif header.resource_type == 'IAM_GLOBAL':
             if target_model != "Secure":
                 # If Root MFA is ENABLED (True), 'not True' is False, so this is skipped.
@@ -130,10 +130,10 @@ def run_analysis(scan_id, target_model="Vuln"):
             if any(r in ["Port:ALL", "Port:22"] for r in rules):
                 add_finding(header.config_id, "RULE-SG-01", header.resource_name)
                 
-            # NEW: RULE-SG-03 (Public Database Ports)
-            db_ports = ["Port:3306", "Port:5432", "Port:27017", "Port:1433"]
-            if any(r in db_ports for r in rules):
-                add_finding(header.config_id, "RULE-SG-03", header.resource_name)
+            # # NEW: RULE-SG-03 (Public Database Ports)
+            # db_ports = ["Port:3306", "Port:5432", "Port:27017", "Port:1433"]
+            # if any(r in db_ports for r in rules):
+            #     add_finding(header.config_id, "RULE-SG-03", header.resource_name)
         
         # NEW: RULE-EC2-02 (EC2 Instance IMDS Version)
         if header.resource_type == 'EC2_INSTANCE':

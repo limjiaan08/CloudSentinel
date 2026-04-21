@@ -7,8 +7,7 @@ scan_history_bp = Blueprint('scan_history', __name__)
 @scan_history_bp.route('/scan-history/<user_id>', methods=['GET'])
 def get_scan_history(user_id):
     try:
-        # --- 1. Subquery: Count findings by severity for every Result ---
-        # We use func.nullif to ensure we only count specific severity strings
+        # Count findings by severity for every Result ---
         severity_counts = db.session.query(
             ResultItem.result_id,
             func.count(func.nullif(ResultItem.severity != 'High', True)).label('high'),
@@ -17,8 +16,7 @@ def get_scan_history(user_id):
         ).group_by(ResultItem.result_id).subquery()
 
         # --- 2. Main Query ---
-        # FIX: We use func.lower() on both sides to avoid UUID case mismatch
-        # (e.g., 'ABC-123' vs 'abc-123')
+        # Combine Scan info with the counts calculated in the subquery above
         history_query = db.session.query(
             Scan,
             severity_counts.c.high,
