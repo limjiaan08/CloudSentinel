@@ -11,25 +11,27 @@ import os
 # Define the blueprint (mini-app for authentication)
 auth_bp = Blueprint('auth', __name__)
 
-# Password security tool
+# Password security tool: Modularizes authentication routes to keep the main app entry point clean
 bcrypt = Bcrypt()
 
-# Mail tool
+# Mail tool: Manages SMTP connections for sending system emails
 mail = Mail()
 
 def get_my_time():
     return datetime.now(pytz.timezone('Asia/Kuala_Lumpur'))
 
 def get_serializer():
-    """Helper function to get the serializer with the correct app SECRET_KEY"""
+    #Helper function to get the serializer with the correct app SECRET_KEY
     return URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
 
 # --- SIGN UP ---
 @auth_bp.route('/signup', methods=['POST'])
 def signup():
+    # Creates a new user record after validating input and hashing the password
+    data = request.get_json()
     data = request.get_json()
 
-    # Validation
+    # Presence validation for required fields
     if not data or not data.get('name') or not data.get('email') or not data.get('password'):
         return jsonify({"error": "Missing name, email or password"}), 400
     
@@ -59,6 +61,7 @@ def signup():
 # --- SIGN IN ---
 @auth_bp.route('/login', methods=['POST'])
 def login():
+    # Verifies credentials and creates a database-backed session entry
     data = request.get_json()
     email = data.get('email')
     password = data.get('password')
@@ -138,10 +141,11 @@ def forgot_password():
 
     user = User.query.filter_by(user_email=email).first()
 
+    # Precent email enumeration 
     if user:
         try:
             serializer = get_serializer()
-            # Token contains the email and the current timestamp
+            # Token is signed with a secret key and specific 'salt'
             token = serializer.dumps(email, salt='password-reset-salt')
             
             # React Frontend Link
@@ -156,7 +160,6 @@ def forgot_password():
         except Exception as e:
             current_app.logger.error(f"Mail error: {e}")
 
-    # Prevent Email Enumeration
     return jsonify({
         "message": "If an account matches that email, a reset link has been sent."
     }), 200
@@ -166,7 +169,7 @@ def forgot_password():
 def verify_reset_token(token):
     serializer = get_serializer()
     try:
-        # TEST: Use 5 for testing, 1800 (30 mins) for production
+        #30 minutes
         MAX_AGE = 1800
         email = serializer.loads(token, salt='password-reset-salt', max_age=MAX_AGE)
         return jsonify({"valid": True, "email": email}), 200
@@ -181,7 +184,6 @@ def reset_password(token):
     serializer = get_serializer()
     
     try:
-        # MUST MATCH the MAX_AGE in verify_reset_token
         MAX_AGE = 1800 
         email = serializer.loads(token, salt='password-reset-salt', max_age=MAX_AGE)
     except SignatureExpired:

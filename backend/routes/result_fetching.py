@@ -15,7 +15,7 @@ def get_scan_results(scan_id):
             if not user_id:
                 return jsonify({"error": "user_id is required"}), 400
 
-            # CRITICAL: We skip CANCELLED/FAILED and find the absolute latest SUCCESS
+            # Skip CANCELLED/FAILED and find the absolute latest SUCCESS
             latest_completed_scan = Scan.query.filter_by(user_id=user_id, scan_status='COMPLETED')\
                                          .order_by(Scan.start_time.desc()).first()
             
