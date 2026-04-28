@@ -141,7 +141,7 @@ def forgot_password():
 
     user = User.query.filter_by(user_email=email).first()
 
-    # Precent email enumeration 
+    # Prevent email enumeration 
     if user:
         try:
             serializer = get_serializer()

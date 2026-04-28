@@ -59,7 +59,20 @@ def verify_aws_connection():
 
     except ClientError as e:
         error_code = e.response['Error']['Code']
-        return jsonify({"error": f"AWS Error: {error_code}"}), 401
+        # Mapping technical codes to user-friendly messages
+        error_map = {
+            'InvalidClientTokenId': "The Access Key provided is invalid. Please check and try again.",
+            'SignatureDoesNotMatch': "The Secret Key provided is incorrect. Please verify your credentials.",
+            'AuthFailure': "AWS could not validate these credentials. Ensure they are active in IAM.",
+            'InvalidSignatureException': "Credentials validation failed. Check your Secret Access Key.",
+            'ExpiredToken': "The session token has expired. Please provide fresh credentials.",
+            'AccessDenied': "These credentials do not have permission to verify identity via STS."
+        }
+
+        # Fallback to the code if it's not in our map
+        friendly_message = error_map.get(error_code, f"Connection failed: {error_code}")
+        
+        return jsonify({"error": friendly_message}), 401
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500

@@ -41,7 +41,7 @@ def fetch_config():
         print(f"🚀 IDENTITY DETECTED: {iam_user_name} | TARGET MODEL: {target_tag}")
         print(f"{'='*60}")
 
-        # Initialize specific AWS service clients for use in subsequent scna steps
+        # Initialize specific AWS service clients for use in subsequent scan steps
         s3_client, iam_client, ec2_client = session.client('s3'), session.client('iam'), session.client('ec2')
 
         # --- KILL SWITCH HELPER ---
@@ -260,18 +260,37 @@ def fetch_config():
             if check_and_abort(): return jsonify({"status": "cancelled"}), 200
             tags = {t['Key']: t['Value'] for t in sg.get('Tags', [])}
             if tags.get('SecurityModel') == target_tag:
-                open_rules = []
+                open_ingress=[]
+                open_egress=[]
 
-                # Loop through ingress (inbound) permissions
+                # 1. Scan Ingress (Inbound)
                 for perm in sg.get('IpPermissions', []):
                     for ip_range in perm.get('IpRanges', []):
+                        # Flags 0.0.0.0/0 (Open to the whole internet)
                         if ip_range.get('CidrIp') == '0.0.0.0/0':
                             p = perm.get('FromPort', 'ALL')
-                            open_rules.append(f"Port:{p}")
+                            open_ingress.append(f"Port:{p}")
+
+                # 2. Scan Egress (Outbound)
+                # IpPermissionsEgress handles the traffic leaving the resource
+                for perm in sg.get('IpPermissionsEgress', []):
+                    for ip_range in perm.get('IpRanges', []):
+                        # Flags 0.0.0.0/0 (Traffic can leave to any destination)
+                        # IpProtocol '-1' indicates 'ALL' protocols/ports
+                        if ip_range.get('CidrIp') == '0.0.0.0/0':
+                            p = perm.get('FromPort', 'ALL')
+                            if perm.get('IpProtocol') == '-1':
+                                open_egress.append("Port:ALL")
+                            else:
+                                open_egress.append(f"Port:{p}")
                 header = AWSConfig(scan_id=scan_id, resource_name=sg['GroupName'], resource_type='EC2_SG')
                 db.session.add(header)
                 db.session.flush()
-                db.session.add(EC2Config(config_id=header.config_id, open_ingress_rules=json.dumps(open_rules)))
+                db.session.add(EC2Config(
+                    config_id=header.config_id, 
+                    open_ingress_rules=json.dumps(open_ingress),
+                    open_egress_rules=json.dumps(open_egress)  # Now populating your new column
+                ))
 
         # --- 6. EC2 INSTANCE SCAN ---
         if check_and_abort(): return jsonify({"status": "cancelled"}), 200
