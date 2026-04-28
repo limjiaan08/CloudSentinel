@@ -110,32 +110,39 @@ def run_analysis(scan_id, target_model="Vuln"):
 
     # --- 5. VPC & SG Analysis ---
     print("\n📝 [4/4] Analyzing Network Perimeter (VPC & SG)...")
+
+    # --- 5a. VPC Analysis ---
     vpc_data = db.session.query(AWSConfig, VPCConfig).join(VPCConfig).filter(AWSConfig.scan_id == scan_id).all()
     for header, detail in vpc_data:
         if is_cancelled(): return get_my_time(), 0.0
+        
+        # RULE-VPC-02: Missing visibility
         if not detail.flow_logs_enabled:
             add_finding(header.config_id, "RULE-VPC-02", header.resource_name)
+        
+        # RULE-VPC-01: Poor segmentation (detecting the string we injected in the fetcher)
         if "Subnets: 1" in header.resource_name:
             add_finding(header.config_id, "RULE-VPC-01", header.resource_name)
 
+    # --- 5b. SG & EC2 Analysis ---
     sg_data = db.session.query(AWSConfig, EC2Config).join(EC2Config).filter(AWSConfig.scan_id == scan_id).all()
     for header, detail in sg_data:
         if is_cancelled(): return get_my_time(), 0.0
         
-        # Check Security Group Rules
+        # Security Group Specific Rules (CNAS-6)
         if header.resource_type == 'EC2_SG':
-            rules = json.loads(detail.open_ingress_rules) if detail.open_ingress_rules else []
-            
-            # Original RULE-SG-01 (SSH/All)
-            if any(r in ["Port:ALL", "Port:22"] for r in rules):
+            # --- Check Ingress (Existing) ---
+            in_rules = json.loads(detail.open_ingress_rules) if detail.open_ingress_rules else []
+            if any(r in ["Port:ALL", "Port:22"] for r in in_rules):
                 add_finding(header.config_id, "RULE-SG-01", header.resource_name)
                 
-            # # NEW: RULE-SG-03 (Public Database Ports)
-            # db_ports = ["Port:3306", "Port:5432", "Port:27017", "Port:1433"]
-            # if any(r in db_ports for r in rules):
-            #     add_finding(header.config_id, "RULE-SG-03", header.resource_name)
+            # --- NEW: Check Egress for RULE-SG-04 (CNAS-6) ---
+            out_rules = json.loads(detail.open_egress_rules) if detail.open_egress_rules else []
+            # If 'Port:ALL' exists in the egress list, it means 0.0.0.0/0 is open for all traffic
+            if "Port:ALL" in out_rules:
+                add_finding(header.config_id, "RULE-SG-04", header.resource_name)
         
-        # NEW: RULE-EC2-02 (EC2 Instance IMDS Version)
+        # Instance Specific Rules (CNAS-1)
         if header.resource_type == 'EC2_INSTANCE':
             if hasattr(detail, 'imds_version') and detail.imds_version == 'v1':
                 add_finding(header.config_id, "RULE-EC2-02", header.resource_name)

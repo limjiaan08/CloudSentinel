@@ -46,6 +46,8 @@ class EC2Config(db.Model):
     open_ingress_rules = Column(Text, nullable=True)
     # NEW: For RULE-EC2-02 (CNAS-1)
     imds_version = Column(String(10), default='v1')
+    # NEW: For RULE-SG-04 (CNAS-6)
+    open_egress_rules = Column(Text, nullable=True)
 
 class EBSConfig(db.Model):
     __tablename__ = 'ebs_config' 
