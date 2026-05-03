@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
-// Added RefreshCw for the scanning animation
 import { AlertTriangle, Clock, LayoutDashboard, Search, History as HistoryIcon, User, LogOut, Play, AlertCircle, RefreshCw, Rocket, 
     Database, Zap, ShieldCheck, Activity, ChevronRight, PieChart as PieIcon, Globe
  } from 'lucide-react'; 
@@ -8,6 +7,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recha
 import logoImg from './assets/cloudsentinel_logo.png';
 import Findings from './Findings'; 
 import History from './History';
+import SentinelChat from './SentinelChat';
 
 const Dashboard = ({ onLogout, user }) => {
     const navigate = useNavigate();
@@ -31,6 +31,7 @@ const Dashboard = ({ onLogout, user }) => {
     const [currentService, setCurrentService] = useState(''); // Tracking S3, IAM, etc.
     const [currentScanId, setCurrentScanId] = useState(null);
     const [findings, setFindings] = useState([]); // 1. Add this state at the top
+    const [activeFinding, setActiveFinding] = useState(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -387,6 +388,7 @@ const Dashboard = ({ onLogout, user }) => {
                                         {activePage.subtitle}
                                     </p>
                                 </div>
+                                <SentinelChat selectedFindingId={activeFinding} />
                             </div>
                         </div>
 

@@ -8,6 +8,7 @@ from routes.connection import connection_bp
 from routes.config_fetching import config_fetching_bp
 from routes.result_fetching import result_fetching_bp
 from routes.scan_history import scan_history_bp
+from routes.ai_routes import ai_bp
 
 load_dotenv()
 
@@ -51,6 +52,7 @@ app.register_blueprint(connection_bp, url_prefix='/api')
 app.register_blueprint(config_fetching_bp, url_prefix='/api')
 app.register_blueprint(result_fetching_bp, url_prefix='/api')
 app.register_blueprint(scan_history_bp, url_prefix='/api')
+app.register_blueprint(ai_bp, url_prefix='/api')
 
 @app.route('/')
 def home():
