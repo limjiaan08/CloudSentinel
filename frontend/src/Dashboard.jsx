@@ -318,7 +318,7 @@ const Dashboard = ({ onLogout, user }) => {
                     </div>
                 </div>
 
-                <div className="mt-0 mb-10 p-5 mr-1 rounded-[1.5rem] bg-white/5 border border-white/10 backdrop-blur-md shadow-inner">
+                <div className="mt-0 mb-10 p-5 mr-1 rounded-[1.5rem] bg-white/5 border border-white/20 backdrop-blur-md shadow-inner">
                     <div className="flex items-center gap-2 mb-4">
                         <div className="h-2.5 w-1 rounded-full bg-[#FF9900] animate-pulse shadow-[0_0_8px_#FF9900]"></div>
                         <span className="text-[12px] font-bold uppercase tracking-[0.25em] text-white">Detection Scope</span>

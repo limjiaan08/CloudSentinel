@@ -7,6 +7,79 @@ load_dotenv()
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
+# In-scope keywords for validation
+SCOPE_KEYWORDS = {
+    "aws", "s3", "ec2", "iam", "vpc", "ebs", "security", "encryption", "mfa",
+    "access key", "bucket", "instance", "role", "policy", "firewall", 
+    "compliance", "vulnerability", "misconfiguration", "cloud", "remediation",
+    "cloudsentinel", "dashboard", "scan", "finding", "severity", "risk"
+}
+
+def format_cli_command(text):
+    """
+    Format long CLI commands to break them into multiple readable lines.
+    Adds backslash continuation for better UI display.
+    """
+    import re
+    
+    # Find CLI command blocks
+    cli_pattern = r'```\n(.*?)\n```'
+    matches = re.findall(cli_pattern, text, re.DOTALL)
+    
+    for match in matches:
+        # If command is already split with backslash, keep it
+        if '\\' in match:
+            continue
+        
+        # If command is very long (>120 chars), split it
+        if len(match.strip()) > 120:
+            original = match.strip()
+            
+            # Split by common AWS CLI delimiters (--flag)
+            parts = re.split(r'(\s--)', original)
+            
+            # Reconstruct with backslash continuation
+            if len(parts) > 1:
+                formatted = parts[0]
+                for i in range(1, len(parts)):
+                    formatted += f" \\\n    --{parts[i]}"
+                
+                text = text.replace(f'```\n{match}\n```', f'```\n{formatted}\n```')
+    
+    return text
+
+def is_query_in_scope(user_query):
+    """
+    Validate if query is within CloudSentinel scope.
+    Returns True if related to AWS security, False for off-topic queries.
+    """
+    query_lower = user_query.lower()
+    
+    # ALLOW: Greeting and capability questions
+    greeting_keywords = ["hi", "hello", "hey", "greetings", "what can", "what do", "who are", "tell me about", "help", 
+                        "explain cloudsentinel", "what is cloudsentinel", "capabilities",
+                        "features", "describe yourself", "what's your purpose", "how do i use",
+                        "introduce yourself", "info", "information", "overview", "start"]
+    
+    for greeting in greeting_keywords:
+        if greeting in query_lower:
+            return True  # Allow all greeting/capability questions
+    
+    # REJECT: Obvious out-of-scope topics (only if NO AWS keywords present)
+    out_of_scope = ["weather", "recipe", "movie", "music", "sports", "joke", 
+                    "politics", "travel advice", "medical", "legal advice",
+                    "book recommendation", "cooking", "sports"]
+    
+    query_has_out_of_scope = any(phrase in query_lower for phrase in out_of_scope)
+    query_has_scope_keyword = any(keyword in query_lower for keyword in SCOPE_KEYWORDS)
+    
+    # Reject only if it's out-of-scope AND has NO AWS keywords
+    if query_has_out_of_scope and not query_has_scope_keyword:
+        return False
+    
+    # Check if query contains at least one scope keyword OR is a greeting
+    return query_has_scope_keyword
+
 def get_detailed_config_context(config_id, service):
     # Dives into service-specific tables to extractt the exact technical state for the LLM
     header = AWSConfig.query.get(config_id)
@@ -60,43 +133,70 @@ def get_detailed_config_context(config_id, service):
     return details
 
 def get_sentinel_response(user_query, result_item_id=None):
-    # The main LLM logic: Combines DB findings with Gemini's intelligence.
+    # STEP 1: Validate query is in scope
+    if not is_query_in_scope(user_query):
+        return (
+            "❌ Out of scope. I only help with AWS security, cloud misconfigurations, "
+            "and CloudSentinel findings. Please ask about security vulnerabilities, "
+            "remediation steps, or AWS best practices."
+        )
+    
+    # STEP 2: Gather database context (if specific finding)
     context_packet = ""
-
-    # 1. ATTEMPT TO GATHER DATABASE CONTEXT
     if result_item_id:
         item = ResultItem.query.get(result_item_id)
         if item:
             tech_details = get_detailed_config_context(item.config_id, item.aws_service)
             context_packet = f"""
-            [CRITICAL SECURITY FINDING]
-            Service: {item.aws_service}
-            Severity: {item.severity}
-            Category: {item.cnas_category}
-            Detection Rule: {item.misconfig_name}
-            Technical Data: {tech_details}
-            System Description: {item.description}
-            """
+[FINDING] {item.aws_service} | Severity: {item.severity}
+Rule: {item.misconfig_name}
+Technical Data: {tech_details}
+"""
 
-    # 2. SYSTEM INSTRUCTIONS (The LLM's Persona)
+    # STEP 3: ULTRA-CONCISE system instruction (both methods: Console + CLI)
     system_instruction = (
-        "You are SentinelAI, an elite Cloud Security Co-Pilot. "
-        "You specialize in the CNAS framework (1, 3, and 6). "
-        "BEHAVIOR RULES:\n"
-        "1. If [CRITICAL SECURITY FINDING] is present, provide a tailored fix for that specific resource.\n"
-        "2. If no finding is present, act as a general cloud security consultant.\n"
-        "3. Always explain the RISK first.\n"
-        "4. Provide step-by-step AWS Console remediation.\n"
-        "5. Provide a code block with the exact AWS CLI command.\n"
-        "6. If asked about the system, mention the 'Dashboard', 'Connect', or 'History' pages."
+        "You are SentinelAI, AWS Security Assistant for CloudSentinel. "
+        "RESPONSE FORMATS:\n"
+        "\n"
+        "1. FOR [FINDING] (Security Issues):\n"
+        "🚨 RISK: (1 sentence explaining the danger)\n"
+        "📋 AWS CONSOLE STEPS:\n"
+        "   1. [Go to service/page]\n"
+        "   2. [Action to take]\n"
+        "   3. [Action to take]\n"
+        "   4. [Save/Apply]\n"
+        "💻 AWS CLI (OPTIONAL - one-liner only):\n"
+        "```\n"
+        "[SHORT AWS CLI command with \\ for line breaks if needed]\n"
+        "```\n"
+        "\n"
+        "2. FOR GREETING/CAPABILITY QUESTIONS (what can you do, tell me about you, etc):\n"
+        "- Introduce yourself: 'I'm SentinelAI, your AWS Cloud Security Co-Pilot.'\n"
+        "- List your capabilities: AWS security scanning, misconfigurations detection, remediation guidance\n"
+        "- Services covered: S3, IAM, EBS, EC2, VPC\n"
+        "- Keep it concise (max 3 paragraphs)\n"
+        "\n"
+        "CRITICAL RULES:\n"
+        "- Be EXTREMELY brief (max 250 words total)\n"
+        "- For greetings: friendly but professional tone\n"
+        "- For security findings: urgent, actionable tone\n"
+        "- For out-of-scope: respond 'I only help with AWS security questions.'"
     )
 
     try:
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=f"{context_packet}\n\nUser Question: {user_query}",
             config={'system_instruction': system_instruction}
         )
-        return response.text
+        
+        # STEP 4: Format CLI commands for readability
+        response_text = format_cli_command(response.text)
+        
+        # STEP 5: STRICT response length (keep UI clean)
+        if len(response_text) > 1300:  # ~270 words max for both methods
+            response_text = response_text[:1200] + "\n\n⚠️ [Full response truncated - see AWS docs for details]"
+        
+        return response_text
     except Exception as e:
         return f"SentinelAI is currently unavailable. Error: {str(e)}"
