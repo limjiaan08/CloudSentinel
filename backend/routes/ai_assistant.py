@@ -3,9 +3,15 @@ from google import genai
 from dotenv import load_dotenv
 from models import db, ResultItem, AWSConfig, S3Config, IAMConfig, VPCConfig, EC2Config, EBSConfig
 
-load_dotenv()
+# Load .env from backend directory explicitly
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+# Initialize Gemini client with API key from environment
+api_key = os.getenv("GEMINI_API_KEY")
+if not api_key:
+    raise ValueError("GEMINI_API_KEY not found in environment variables. Check your .env file.")
+
+client = genai.Client(api_key=api_key)
 
 # In-scope keywords for validation
 SCOPE_KEYWORDS = {
@@ -177,14 +183,16 @@ Technical Data: {tech_details}
         "```\n"
         "\n"
         "2. FOR GREETING/CAPABILITY QUESTIONS (what can you do, tell me about you, etc):\n"
-        "- Introduce yourself: 'I'm SentinelAI, your AWS Cloud Security Co-Pilot.'\n"
-        "- List your capabilities: AWS security scanning, misconfigurations detection, remediation guidance\n"
-        "- Services covered: S3, IAM, EBS, EC2, VPC\n"
-        "- Keep it concise (max 3 paragraphs)\n"
+        "- Do NOT repeat your name or full identity\n"
+        "- Respond directly and naturally\n"
+        "- Explain capabilities in 1–3 short sentences\n"
+        "- Focus on what the system does, not who you are\n"
         "\n"
         "CRITICAL RULES:\n"
         "- Be EXTREMELY brief (max 250 words total)\n"
         "- For greetings: friendly but professional tone\n"
+        "- Do not repeat your identity in every response\n"
+        "- Only state identity when explicitly asked 'who are you' or 'introduce yourself'\n"
         "- For security findings: urgent, actionable tone\n"
         "- For out-of-scope: respond 'I only help with AWS security questions.'"
     )

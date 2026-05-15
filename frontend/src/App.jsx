@@ -20,20 +20,50 @@ function App() {
     const savedUser = localStorage.getItem('user_name');
     const savedSession = localStorage.getItem('session_id');
     const savedId = localStorage.getItem('user_id'); // NEW: Get user_id
+    const token = localStorage.getItem('authToken');
+    const tokenExpiry = localStorage.getItem('tokenExpiry');
 
     if (savedUser && savedSession && savedId) {
       setUser({ user_name: savedUser, session_id: savedSession, user_id: savedId });
     }
+
+    // Setup auto-logout timer for token expiration
+    if (token && tokenExpiry) {
+      const checkTokenExpiry = () => {
+        const now = new Date();
+        const expiry = new Date(tokenExpiry);
+        
+        // If token has expired, logout
+        if (now >= expiry) {
+          console.warn('Token has expired, logging out...');
+          localStorage.clear();
+          setUser(null);
+        }
+      };
+
+      // Check every 30 seconds
+      const timerId = setInterval(checkTokenExpiry, 30000);
+      
+      // Initial check
+      checkTokenExpiry();
+      
+      return () => clearInterval(timerId);
+    }
   }, []);
 
   const handleLogout = async () => {
+    const token = localStorage.getItem('authToken');
     const sessionId = localStorage.getItem('session_id');
-    if (sessionId) {
+    
+    if (token || sessionId) {
       try {
         await fetch('http://localhost:5000/auth/logout', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: sessionId }),
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` })
+          },
+          body: JSON.stringify({ token, session_id: sessionId }),
         });
       } catch (error) {
         console.error("Logout error:", error);

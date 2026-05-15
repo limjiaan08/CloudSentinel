@@ -61,7 +61,7 @@ const History = ({ user }) => {
     };
 
     if (loading) return (
-        <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-208px)] p-20 flex flex-col items-center justify-center animate-in fade-in duration-300">
+        <div className="min-h-[calc(100vh-240px)] flex flex-col items-center justify-center p-10">
             <Loader2 className="animate-spin text-[#FF9900] mb-4" size={48} />
             <p className="text-slate-500 font-bold text-lg uppercase tracking-widest">Syncing Audit Logs...</p>
         </div>

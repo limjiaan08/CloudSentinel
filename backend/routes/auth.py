@@ -3,6 +3,7 @@ from models import db
 from models.auth import User, Session
 from flask_bcrypt import Bcrypt
 from datetime import datetime, timedelta
+from functools import wraps
 import pytz
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 from flask_mail import Message, Mail
@@ -20,6 +21,15 @@ mail = Mail()
 
 def get_my_time():
     return datetime.now(pytz.timezone('Asia/Kuala_Lumpur'))
+
+def make_aware(dt):
+    malaysia_tz = pytz.timezone('Asia/Kuala_Lumpur')
+
+    # If datetime from DB is naive
+    if dt and dt.tzinfo is None:
+        return malaysia_tz.localize(dt)
+
+    return dt
 
 def get_serializer():
     #Helper function to get the serializer with the correct app SECRET_KEY
@@ -266,44 +276,266 @@ def token_required(f):
     Decorator to require and validate JWT token for protected routes.
     Token should be in Authorization header: "Bearer <token>"
     """
+
     @wraps(f)
     def decorated(*args, **kwargs):
+
+        # ✅ Allow CORS preflight requests without token
+        if request.method == 'OPTIONS':
+            return '', 200
+
         token = None
-        
+
         # Check for token in Authorization header
         if 'Authorization' in request.headers:
             auth_header = request.headers['Authorization']
+
             try:
-                token = auth_header.split(" ")[1]  # Extract token from "Bearer <token>"
+                token = auth_header.split(" ")[1]
+
             except IndexError:
-                return jsonify({"error": "Invalid token format. Use 'Bearer <token>'"}), 401
-        
+                return jsonify({
+                    "error": "Invalid token format. Use 'Bearer <token>'"
+                }), 401
+
         if not token:
             return jsonify({"error": "Token is required"}), 401
-        
+
         # Verify token validity
         payload = verify_jwt_token(token)
+
         if not payload:
-            return jsonify({"error": "Token is invalid or expired"}), 401
-        
+            return jsonify({
+                "error": "Token is invalid or expired"
+            }), 401
+
         # Check if session is still active
         session = Session.query.filter_by(
             token=token,
             is_active=1
         ).first()
-        
+
         if not session:
-            return jsonify({"error": "Session is not active or token has been revoked"}), 401
-        
+            return jsonify({
+                "error": "Session is not active or token has been revoked"
+            }), 401
+
         # Check token expiry time
-        if session.token_expiry and session.token_expiry < get_my_time():
-            return jsonify({"error": "Token has expired"}), 401
-        
-        # Pass user_id and session_id to the route
+        if session.token_expiry and make_aware(session.token_expiry) < get_my_time():
+            return jsonify({
+                "error": "Token has expired"
+            }), 401
+
+        # Store user info in request
         request.user_id = payload.get('user_id')
         request.session_id = payload.get('session_id')
         request.token = token
-        
+
         return f(*args, **kwargs)
-    
+
     return decorated
+
+# --- VERIFY TOKEN ENDPOINT ---
+@auth_bp.route('/verify-token', methods=['POST'])
+def verify_token():
+    """
+    Validate current token and return expiry information.
+    Used by frontend to check if token is still valid before making requests.
+    Returns: { "valid": true/false, "token_expiry": "...", "message": "..." }
+    """
+    token = None
+    
+    # Check for token in Authorization header
+    if 'Authorization' in request.headers:
+        auth_header = request.headers['Authorization']
+        try:
+            token = auth_header.split(" ")[1]
+        except IndexError:
+            return jsonify({"valid": False, "message": "Invalid token format"}), 401
+    
+    if not token:
+        return jsonify({"valid": False, "message": "Token is required"}), 401
+    
+    # Verify JWT signature and expiration
+    payload = verify_jwt_token(token)
+    if not payload:
+        return jsonify({"valid": False, "message": "Token is invalid or expired"}), 401
+    
+    # Check if session is still active in database
+    session = Session.query.filter_by(token=token, is_active=1).first()
+    
+    if not session:
+        return jsonify({"valid": False, "message": "Session is not active or token has been revoked"}), 401
+    
+    # Check if token has expired
+    if session.token_expiry and make_aware(session.token_expiry) < get_my_time():
+        # Token has expired, mark session as inactive
+        session.is_active = 0
+        db.session.commit()
+        return jsonify({"valid": False, "message": "Token has expired. Please log in again."}), 401
+    
+    # Token is valid
+    return jsonify({
+        "valid": True,
+        "token_expiry": session.token_expiry.isoformat() if session.token_expiry else None,
+        "user_id": payload.get('user_id'),
+        "message": "Token is valid"
+    }), 200
+
+# --- AUTO LOGOUT ON TOKEN EXPIRY ---
+@auth_bp.route('/auto-logout', methods=['POST'])
+def auto_logout():
+    """
+    Automatically logout user when token expires.
+    Called by frontend when token expiry time is reached.
+    """
+    token = None
+    
+    if 'Authorization' in request.headers:
+        auth_header = request.headers['Authorization']
+        try:
+            token = auth_header.split(" ")[1]
+        except IndexError:
+            return jsonify({"error": "Invalid token format"}), 401
+    
+    if not token:
+        return jsonify({"error": "Token is required"}), 401
+    
+    # Find and deactivate the session
+    session = Session.query.filter_by(token=token).first()
+    if session:
+        session.is_active = 0
+        session.end_time = get_my_time()
+        
+        try:
+            if session.start_time:
+                start_ts = session.start_time.timestamp()
+                end_ts = session.end_time.timestamp()
+                session.duration = int(end_ts - start_ts)
+            
+            db.session.commit()
+            return jsonify({
+                "message": "Session terminated due to token expiration"
+            }), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 500
+    
+    return jsonify({"message": "Session already terminated"}), 200
+
+# --- GET USER PROFILE ---
+@auth_bp.route('/user/<user_id>', methods=['GET'])
+@token_required
+def get_user_profile(user_id):
+    """
+    Get user profile information including:
+    - User basic info (name, email, created_at)
+    - Last login/session info
+    - Current token expiry time
+    """
+    user = User.query.filter_by(user_id=user_id).first()
+    
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    
+    # Get the current active session from the request context
+    current_session = Session.query.filter_by(
+        token=request.token,
+        is_active=1
+    ).first()
+    
+    # Get the last session
+    last_session = Session.query.filter_by(user_id=user_id).order_by(
+        Session.end_time.desc()
+    ).first()
+    print("LAST SESSION ID:", last_session.session_id if last_session else None)
+    print("START:", last_session.start_time if last_session else None)
+    print("DURATION:", last_session.duration if last_session else None)
+    
+    return jsonify({
+        "user_id": user.user_id,
+        "user_name": user.user_name,
+        "user_email": user.user_email,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "last_login": last_session.start_time.isoformat() if last_session and last_session.start_time else None,
+        "last_session_duration": last_session.duration if last_session else None,
+        "token_expiry": current_session.token_expiry.isoformat() if current_session and current_session.token_expiry else None,
+        "is_token_valid": current_session is not None and (not current_session.token_expiry or make_aware(current_session.token_expiry) > get_my_time())
+    }), 200
+
+# --- UPDATE USER PROFILE ---
+@auth_bp.route('/user/<user_id>', methods=['PUT'])
+@token_required
+def update_user_profile(user_id):
+    """
+    Update user profile information.
+    Currently allows updating user_name.
+    """
+    user = User.query.filter_by(user_id=user_id).first()
+    
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    
+    data = request.get_json()
+    
+    if 'user_name' in data:
+        user.user_name = data['user_name']
+    
+    try:
+        db.session.commit()
+        return jsonify({
+            "message": "Profile updated successfully",
+            "user_name": user.user_name
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+# --- RE-AUTHENTICATE (Token Refresh) ---
+@auth_bp.route('/user/<user_id>/re-authenticate', methods=['POST'])
+@token_required
+def re_authenticate(user_id):
+    """
+    Re-authenticate user by generating a new token.
+    Used when user wants to extend session or verify identity.
+    """
+    user = User.query.filter_by(user_id=user_id).first()
+    
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    
+    # Revoke current session
+    current_session = Session.query.filter_by(token=request.token).first()
+    if current_session:
+        current_session.is_active = 0
+        current_session.end_time = get_my_time()
+    
+    # Create new session
+    new_session = Session(
+        user_id=user_id,
+        start_time=get_my_time()
+    )
+    
+    try:
+        db.session.add(new_session)
+        db.session.flush()
+        
+        # Generate new JWT token
+        new_token = generate_jwt_token(user_id, new_session.session_id, expiration_hours=24)
+        new_token_expiry = get_my_time() + timedelta(hours=24)
+        
+        new_session.token = new_token
+        new_session.token_expiry = new_token_expiry
+        new_session.is_active = 1
+        
+        db.session.commit()
+        
+        return jsonify({
+            "message": "Re-authenticated successfully",
+            "token": new_token,
+            "token_expiry": new_token_expiry.isoformat(),
+            "session_id": new_session.session_id
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500

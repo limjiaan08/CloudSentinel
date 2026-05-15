@@ -6,7 +6,7 @@ const SentinelChat = ({ selectedFindingId = null }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([
-    { role: 'ai', content: "I'm **SentinelAI**. I've indexed your AWS configuration. How can I assist with your security posture?" }
+    { role: 'ai', content: "I'm **SentinelAI**, your intelligent AWS security assistant. Ask me anything about AWS security, cloud misconfigurations, or how to fix security issues. What would you like to know?" }
   ]);
   const [loading, setLoading] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState(null);
@@ -28,9 +28,14 @@ const SentinelChat = ({ selectedFindingId = null }) => {
     setLoading(true);
 
     try {
+      const token = localStorage.getItem('authToken');
+      
       const response = await fetch('http://localhost:5000/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
         body: JSON.stringify({
           message: userMsg,
           result_item_id: selectedFindingId
@@ -38,8 +43,23 @@ const SentinelChat = ({ selectedFindingId = null }) => {
       });
 
       const data = await response.json();
-      setMessages(prev => [...prev, { role: 'ai', content: data.reply || "No response from Sentinel." }]);
+      
+      if (response.ok) {
+        if (data.status === 'success') {
+          setMessages(prev => [...prev, { role: 'ai', content: data.reply || "No response from Sentinel." }]);
+        } else {
+          setMessages(prev => [...prev, { role: 'ai', content: data.message || "Error processing request." }]);
+        }
+      } else {
+        // Handle error responses
+        if (response.status === 401) {
+          setMessages(prev => [...prev, { role: 'ai', content: "⚠️ You must be logged in to use the chatbot. Please log in and try again." }]);
+        } else {
+          setMessages(prev => [...prev, { role: 'ai', content: data.error || data.message || "Error processing request." }]);
+        }
+      }
     } catch (error) {
+      console.error('Chat error:', error);
       setMessages(prev => [...prev, { role: 'ai', content: "⚠️ Connection error. Please ensure the backend is running." }]);
     } finally {
       setLoading(false);
@@ -72,7 +92,7 @@ const SentinelChat = ({ selectedFindingId = null }) => {
             {/* Labeling */}
             <div className="flex flex-col text-left">
             <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#FF9900]">AI Assistant</h4>
-            <span className="text-[16px] font-semibold text-white tracking-tight">Sentienl AI</span>
+            <span className="text-[16px] font-semibold text-white tracking-tight">Sentinel AI</span>
             </div>
 
             <Sparkles size={22} className="ml-auto text-white/20 group-hover:text-[#FF9900] transition-colors" />
@@ -116,13 +136,20 @@ const SentinelChat = ({ selectedFindingId = null }) => {
                             em: ({node, ...props}) => <em className="italic text-slate-700" {...props} />,
                             code: ({node, inline, ...props}) => 
                               inline ? (
-                                <code className="bg-slate-100 text-red-600 px-1 rounded font-mono text-xs" {...props} />
+                                <code className="bg-slate-100 text-red-600 px-1 rounded-md font-mono text-xs" {...props} />
                               ) : (
-                                <code className="block bg-slate-900 text-green-400 p-2 rounded font-mono text-xs overflow-x-auto my-2 relative" {...props} />
+                                <code className="block bg-slate-800 text-green-500 p-2 rounded-md font-mono text-xs overflow-x-auto relative" {...props} />
                               ),
-                            pre: ({node, ...props}) => <pre className="bg-slate-900 text-green-400 p-3 rounded-lg font-mono text-xs overflow-x-auto my-2" {...props} />,
-                            ul: ({node, ...props}) => <ul className="list-disc list-inside space-y-1 my-1" {...props} />,
-                            li: ({node, ...props}) => <li className="ml-2" {...props} />,
+                            pre: ({node, ...props}) => <pre className="bg-slate-800 text-green-500 pt-0 p-3 rounded-md font-mono text-xs overflow-x-auto" {...props} />,
+                            ul: ({node, ...props}) => (
+                              <ul className="list-disc pl-5 space-y-1.5 my-2 text-slate-900" {...props} />
+                            ),
+                            ol: ({node, ...props}) => (
+                              <ol className="list-decimal pl-5 space-y-1.5 my-2 text-slate-900" {...props} />
+                            ),
+                            li: ({node, ...props}) => (
+                              <li className="leading-relaxed marker:text-[#FF9900]" {...props} />
+                            ),
                         }}
                         >
                         {String(msg.content)}
@@ -141,7 +168,7 @@ const SentinelChat = ({ selectedFindingId = null }) => {
                             copyToClipboard(codeMatch[0].replace(/```/g, ''), i);
                           }
                         }}
-                        className="mt-2 text-xs bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded flex items-center gap-1 transition-colors"
+                        className="mt-2 text-xs bg-slate-600 hover:bg-slate-700 text-white px-2 py-1 rounded-md flex items-center gap-1 transition-colors"
                       >
                         {copiedIndex === i ? (
                           <><Check size={12} /> Copied!</>
@@ -154,9 +181,9 @@ const SentinelChat = ({ selectedFindingId = null }) => {
                 </div>
             ))}
             {loading && (
-                <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest ml-2">
+                <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold uppercase tracking-widest ml-2">
                 <Sparkles size={14} className="animate-spin text-[#FF9900]" />
-                Analyzing Infrastructure...
+                Generating Response...
                 </div>
             )}
             </div>
@@ -168,10 +195,10 @@ const SentinelChat = ({ selectedFindingId = null }) => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Query security rules..."
-              className="flex-1 bg-slate-100 border-none rounded-[1.5rem] px-4 py-3 text-sm focus:ring-2 focus:ring-[#FF9900] outline-none"
+              className="flex-1 bg-slate-50 border border-slate-200 rounded-[1.5rem] px-4 py-3 text-sm focus:ring-2 focus:ring-[#FF9900] outline-none"
             />
-            <button type="submit" disabled={loading} className="bg-slate-50 text-slate-400 p-3 rounded-full hover:text-[#FF9900] hover:bg-slate-100 disabled:opacity-50">
-              <Send size={20} />
+            <button type="submit" disabled={loading} className=" text-slate-400 hover:text-[#FF9900]">
+              <Send size={25} />
             </button>
           </form>
         </div>

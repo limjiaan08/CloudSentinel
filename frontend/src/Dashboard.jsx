@@ -7,6 +7,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recha
 import logoImg from './assets/cloudsentinel_logo.png';
 import Findings from './Findings'; 
 import History from './History';
+import Profile from './Profile';
 import SentinelChat from './SentinelChat';
 
 const Dashboard = ({ onLogout, user }) => {
@@ -854,13 +855,7 @@ const Dashboard = ({ onLogout, user }) => {
                             {currentPath === '/history' && <History user={user} />}
 
                             {/* PROFILE PAGE */}
-                            {currentPath === '/profile' && (
-                                <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm min-h-[calc(100vh-220px)] p-10 flex flex-col items-center justify-center text-center">
-                                    <User size={48} className="text-slate-300 mb-4" />
-                                    <h3 className="text-xl font-bold text-slate-700">Account Settings</h3>
-                                    <p className="text-slate-400 mt-2 font-medium">Manage your security profile and preferences here.</p>
-                                </div>
-                            )}
+                            {currentPath === '/profile' && <Profile user={user} />}
                         </div>
                     </div>
                 </section>

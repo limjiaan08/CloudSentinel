@@ -10,7 +10,8 @@ from routes.result_fetching import result_fetching_bp
 from routes.scan_history import scan_history_bp
 from routes.ai_routes import ai_bp
 
-load_dotenv()
+# Load .env from backend directory explicitly
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
 app = Flask(__name__)
 

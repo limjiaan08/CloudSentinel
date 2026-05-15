@@ -131,6 +131,10 @@ function SignIn({ onLoginSuccess }) {
 
       if (response.ok) {
         setMessage({ text: `Welcome back, ${data.user_name}!`, isError: false });
+        // Store auth token for API calls
+        localStorage.setItem('authToken', data.token);
+        localStorage.setItem('tokenExpiry', data.token_expiry);
+        // Store user info
         localStorage.setItem('session_id', data.session_id);
         localStorage.setItem('user_name', data.user_name);
         localStorage.setItem('user_id', data.user_id);
