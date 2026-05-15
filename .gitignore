@@ -3,22 +3,39 @@ logs
 *.log
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
 dist
 dist-ssr
 *.local
 
-# Editor directories and files
+# Editor
 .vscode/*
 !.vscode/extensions.json
 .idea
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+
+# Security: Environment Variables
+.env
+.env.local
+.env.*.local
+backend/.env
+**/.env
+
+# Python / Flask
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+instance/*
+.pytest_cache/
+
+# Secrets / keys
+*.pem
+*.key
+config.py
+secrets.py
