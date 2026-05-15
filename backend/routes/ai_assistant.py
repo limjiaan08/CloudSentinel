@@ -141,9 +141,15 @@ def get_sentinel_response(user_query, result_item_id=None):
             "remediation steps, or AWS best practices."
         )
     
-    # STEP 2: Gather database context (if specific finding)
+    # STEP 2: Gather database context ONLY if user explicitly asks about a specific finding
+    # Check if user is asking about "this", "finding", "result", "issue", etc.
     context_packet = ""
-    if result_item_id:
+    explicit_finding_keywords = ["this", "finding", "result", "issue", "analyze", "tell me about", 
+                                 "what is", "explain", "how to fix", "remediate", "solution"]
+    asking_about_finding = any(keyword in user_query.lower() for keyword in explicit_finding_keywords)
+    
+    if result_item_id and asking_about_finding:
+        # Only include finding context if user explicitly asks about it
         item = ResultItem.query.get(result_item_id)
         if item:
             tech_details = get_detailed_config_context(item.config_id, item.aws_service)

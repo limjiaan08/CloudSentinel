@@ -2,11 +2,12 @@ from flask import Blueprint, request, jsonify, current_app
 from models import db
 from models.auth import User, Session
 from flask_bcrypt import Bcrypt
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 from flask_mail import Message, Mail
 import os
+import jwt
 
 # Define the blueprint (mini-app for authentication)
 auth_bp = Blueprint('auth', __name__)
@@ -23,6 +24,33 @@ def get_my_time():
 def get_serializer():
     #Helper function to get the serializer with the correct app SECRET_KEY
     return URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
+
+def generate_jwt_token(user_id, session_id, expiration_hours=24):
+    """
+    Generate a JWT token with expiration.
+    Default expiration: 24 hours
+    """
+    payload = {
+        'user_id': user_id,
+        'session_id': session_id,
+        'exp': datetime.utcnow() + timedelta(hours=expiration_hours),
+        'iat': datetime.utcnow()
+    }
+    token = jwt.encode(payload, current_app.config['SECRET_KEY'], algorithm='HS256')
+    return token
+
+def verify_jwt_token(token):
+    """
+    Verify JWT token and return payload.
+    Returns None if token is invalid or expired.
+    """
+    try:
+        payload = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
+        return payload
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
 
 # --- SIGN UP ---
 @auth_bp.route('/signup', methods=['POST'])
@@ -83,13 +111,26 @@ def login():
 
         try:
             db.session.add(new_session)
+            db.session.flush()  # Flush to get the session_id before commit
+            
+            # Generate JWT token with 24-hour expiration
+            token = generate_jwt_token(user.user_id, new_session.session_id, expiration_hours=24)
+            token_expiry = get_my_time() + timedelta(hours=24)
+            
+            # Store token and expiry in session
+            new_session.token = token
+            new_session.token_expiry = token_expiry
+            new_session.is_active = 1
+            
             db.session.commit()
 
             return jsonify({
                 "message": "Login successful",
                 "user_id": user.user_id,
                 "user_name": user.user_name,
-                "session_id": new_session.session_id
+                "session_id": new_session.session_id,
+                "token": token,
+                "token_expiry": token_expiry.isoformat()
             }), 200
         except Exception as e:
             db.session.rollback()
@@ -101,16 +142,23 @@ def login():
 @auth_bp.route('/logout', methods=['POST'])
 def logout():
     data = request.get_json()
+    token = data.get('token')
     session_id = data.get('session_id')
 
-    if not session_id:
-        return jsonify({"error": "Session ID is required"}), 400
+    if not token and not session_id:
+        return jsonify({"error": "Token or Session ID is required"}), 400
     
-    session = Session.query.filter_by(session_id=session_id).first()
-
+    # Find session by token or session_id
+    session = None
+    if token:
+        session = Session.query.filter_by(token=token).first()
+    elif session_id:
+        session = Session.query.filter_by(session_id=session_id).first()
+    
     if session:
         end_time = get_my_time()
         session.end_time = end_time
+        session.is_active = 0  # Revoke the token
         
         try:
             start_ts = session.start_time.timestamp()
@@ -209,3 +257,53 @@ def reset_password(token):
             return jsonify({"error": "Database error"}), 500
     
     return jsonify({"error": "User not found."}), 404
+
+# --- TOKEN VALIDATION DECORATOR ---
+from functools import wraps
+
+def token_required(f):
+    """
+    Decorator to require and validate JWT token for protected routes.
+    Token should be in Authorization header: "Bearer <token>"
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+        
+        # Check for token in Authorization header
+        if 'Authorization' in request.headers:
+            auth_header = request.headers['Authorization']
+            try:
+                token = auth_header.split(" ")[1]  # Extract token from "Bearer <token>"
+            except IndexError:
+                return jsonify({"error": "Invalid token format. Use 'Bearer <token>'"}), 401
+        
+        if not token:
+            return jsonify({"error": "Token is required"}), 401
+        
+        # Verify token validity
+        payload = verify_jwt_token(token)
+        if not payload:
+            return jsonify({"error": "Token is invalid or expired"}), 401
+        
+        # Check if session is still active
+        session = Session.query.filter_by(
+            token=token,
+            is_active=1
+        ).first()
+        
+        if not session:
+            return jsonify({"error": "Session is not active or token has been revoked"}), 401
+        
+        # Check token expiry time
+        if session.token_expiry and session.token_expiry < get_my_time():
+            return jsonify({"error": "Token has expired"}), 401
+        
+        # Pass user_id and session_id to the route
+        request.user_id = payload.get('user_id')
+        request.session_id = payload.get('session_id')
+        request.token = token
+        
+        return f(*args, **kwargs)
+    
+    return decorated

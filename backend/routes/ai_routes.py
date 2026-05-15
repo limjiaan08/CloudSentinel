@@ -1,14 +1,18 @@
 from flask import Blueprint, request, jsonify
 from routes.ai_assistant import get_sentinel_response
+from routes.auth import token_required
 
 ai_bp = Blueprint('ai', __name__)
 
 @ai_bp.route('/chat', methods=['POST', 'OPTIONS'])
+@token_required
 def chat_with_sentinel():
     """
     Main endpoint for the LLM Chatbot.
+    Requires JWT token authentication (Authorization: Bearer <token>)
     Expects JSON: { "message": "...", "result_item_id": "..." }
-    Note: result_item_id is optional.
+    Note: result_item_id is optional. The chatbot will only provide analysis 
+    if user explicitly asks about findings (e.g., "tell me about this finding").
     """
     if request.method == 'OPTIONS':
         return jsonify({"status": "ok"}), 200

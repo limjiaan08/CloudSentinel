@@ -27,3 +27,6 @@ class Session(db.Model):
     start_time = Column(DateTime, nullable=True)
     end_time = Column(DateTime, nullable=True)
     duration = Column(Integer, nullable=True)
+    token = Column(String(500), nullable=True, unique=True)  # JWT token
+    token_expiry = Column(DateTime, nullable=True)  # Token expiration time
+    is_active = Column(Integer, default=1, nullable=False)  # 1 for active, 0 for revoked
