@@ -4,6 +4,7 @@ import SignIn from './SignIn';
 import SignUp from './SignUp';
 import Dashboard from './Dashboard';
 import ResetPassword from './ResetPassword';
+import TokenExpirationModal from './TokenExpirationModal';
 
 function App() {
   const [user, setUser] = useState(() => {
@@ -41,8 +42,8 @@ function App() {
         }
       };
 
-      // Check every 30 seconds
-      const timerId = setInterval(checkTokenExpiry, 30000);
+      // Check every 1 second (instead of 30 seconds) so popup appears sooner
+      const timerId = setInterval(checkTokenExpiry, 1000);
       
       // Initial check
       checkTokenExpiry();
@@ -75,6 +76,7 @@ function App() {
 
   return (
     <Router>
+      <TokenExpirationModal />
       <Routes>
         {/* 1. INITIAL REDIRECT: Send users from "/" to "/signin" */}
         <Route path="/" element={<Navigate to={user ? "/dashboard" : "/signin"} replace />} />

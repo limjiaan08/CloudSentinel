@@ -11,12 +11,9 @@ def get_my_time():
     # Returns naive datetime for DB compatibility while using KL time
     return datetime.now(pytz.timezone('Asia/Kuala_Lumpur')).replace(tzinfo=None)
 
-# --- Start Scan ---
 @connection_bp.route('/verify-aws', methods=['POST'])
 def verify_aws_connection():
-    # 1. Receive AWS credentials form the frontend
-    # 2. Test against AWS STS (Security Token Service)
-    # 3. If valid, a "Scan" record will be initialized in the database
+    # Endpoint: Validates AWS credentials via STS and initializes a new scan record
     data = request.get_json()
     
     access_key = data.get('accessKey')
@@ -77,11 +74,9 @@ def verify_aws_connection():
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
-# --- Cancel/Stop Scan (The Purge) ---
 @connection_bp.route('/cancel-scan/<scan_id>', methods=['POST'])
 def cancel_scan(scan_id):
-    # Terminates an active scan and updates the record
-    # Uses row-level locking to ensure no other process
+    # Endpoint: Cancels an ongoing scan with row-level locking to prevent race conditions
     try:
         # .with_for_update() prevents race condition
         scan = db.session.query(Scan).filter_by(scan_id=scan_id).with_for_update().first()

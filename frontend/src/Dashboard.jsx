@@ -1079,7 +1079,7 @@ const NavItem = ({ icon, label, isActive, onClick }) => (
         <div className={`transition-colors ${isActive ? 'text-white' : 'text-white/40'}`}>
             {React.cloneElement(icon, { strokeWidth: isActive ? 2.5 : 2 })}
         </div> 
-        <span className="tracking-wide text-[15px] font-bold">{label}</span>
+        <span className="tracking-widest text-[15px] font-bold">{label}</span>
     </div>
 );
 

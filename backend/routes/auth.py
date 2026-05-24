@@ -20,9 +20,11 @@ bcrypt = Bcrypt()
 mail = Mail()
 
 def get_my_time():
+    # Returns current time in Malaysia timezone for consistent database timestamps
     return datetime.now(pytz.timezone('Asia/Kuala_Lumpur'))
 
 def make_aware(dt):
+    # Converts naive datetime from database to timezone-aware datetime in Malaysia timezone
     malaysia_tz = pytz.timezone('Asia/Kuala_Lumpur')
 
     # If datetime from DB is naive
@@ -65,10 +67,10 @@ def verify_jwt_token(token):
 # --- SIGN UP ---
 @auth_bp.route('/signup', methods=['POST'])
 def signup():
-    # Creates a new user record after validating input and hashing the password
+    # Endpoint: Creates a new user account with email verification and secure password storage
     data = request.get_json()
     data = request.get_json()
-
+ 
     # Presence validation for required fields
     if not data or not data.get('name') or not data.get('email') or not data.get('password'):
         return jsonify({"error": "Missing name, email or password"}), 400
@@ -99,7 +101,7 @@ def signup():
 # --- SIGN IN ---
 @auth_bp.route('/login', methods=['POST'])
 def login():
-    # Verifies credentials and creates a database-backed session entry
+    # Endpoint: Authenticates user credentials and generates JWT token for session management
     data = request.get_json()
     email = data.get('email')
     password = data.get('password')
@@ -222,7 +224,7 @@ def forgot_password():
         "message": "If an account matches that email, a reset link has been sent."
     }), 200
 
-# --- VERIFY RESET TOKEN (GET) ---
+# --- VERIFY PASSWORD RESET EMAIL TOKEN (GET) ---
 @auth_bp.route('/verify-reset-token/<token>', methods=['GET'])
 def verify_reset_token(token):
     serializer = get_serializer()
@@ -273,7 +275,7 @@ from functools import wraps
 
 def token_required(f):
     """
-    Decorator to require and validate JWT token for protected routes.
+    Decorator to require and validate JWT token for protected API routes.
     Token should be in Authorization header: "Bearer <token>"
     """
 
@@ -306,7 +308,9 @@ def token_required(f):
 
         if not payload:
             return jsonify({
-                "error": "Token is invalid or expired"
+                "error": "Token is invalid or expired",
+                "error_type": "TOKEN_INVALID",
+                "message": "Your token is invalid or has expired. Please login again."
             }), 401
 
         # Check if session is still active
@@ -322,8 +326,12 @@ def token_required(f):
 
         # Check token expiry time
         if session.token_expiry and make_aware(session.token_expiry) < get_my_time():
+            session.is_active = 0  # Mark session as inactive
+            db.session.commit()
             return jsonify({
-                "error": "Token has expired"
+                "error": "Token has expired",
+                "error_type": "TOKEN_EXPIRED",
+                "message": "Your session has expired. Please login again or renew your token."
             }), 401
 
         # Store user info in request
@@ -509,6 +517,12 @@ def re_authenticate(user_id):
     if current_session:
         current_session.is_active = 0
         current_session.end_time = get_my_time()
+
+    # Calculate duration for the current session before revoking
+        if current_session and current_session.start_time:
+            start_ts = current_session.start_time.timestamp()
+            end_ts = current_session.end_time.timestamp()
+            current_session.duration = int(end_ts - start_ts)
     
     # Create new session
     new_session = Session(
@@ -539,3 +553,55 @@ def re_authenticate(user_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
+
+# --- RENEW EXPIRED TOKEN ---
+@auth_bp.route('/renew-token/<user_id>', methods=['POST'])
+def renew_token(user_id):
+    """
+    Renew an expired token without requiring the old token to be active.
+    Frontend calls this when token expires and user clicks 'Renew' on popup.
+    Requires user_id in the request.
+    Returns: { "token": "...", "token_expiry": "...", "session_id": "..." }
+    """
+    user = User.query.filter_by(user_id=user_id).first()
+    
+    if not user:
+        return jsonify({
+            "error": "User not found",
+            "error_type": "USER_NOT_FOUND"
+        }), 404
+    
+    # Create new session
+    new_session = Session(
+        user_id=user_id,
+        start_time=get_my_time()
+    )
+    
+    try:
+        db.session.add(new_session)
+        db.session.flush()
+        
+        # Generate new JWT token with 24-hour expiration
+        new_token = generate_jwt_token(user_id, new_session.session_id, expiration_hours=24)
+        new_token_expiry = get_my_time() + timedelta(hours=24)
+        
+        new_session.token = new_token
+        new_session.token_expiry = new_token_expiry
+        new_session.is_active = 1
+        
+        db.session.commit()
+        
+        return jsonify({
+            "status": "success",
+            "message": "Token renewed successfully",
+            "token": new_token,
+            "token_expiry": new_token_expiry.isoformat(),
+            "session_id": new_session.session_id,
+            "user_id": user_id
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "error": str(e),
+            "error_type": "TOKEN_RENEWAL_FAILED"
+        }), 500

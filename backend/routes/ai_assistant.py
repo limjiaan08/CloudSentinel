@@ -15,17 +15,38 @@ client = genai.Client(api_key=api_key)
 
 # In-scope keywords for validation
 SCOPE_KEYWORDS = {
-    "aws", "s3", "ec2", "iam", "vpc", "ebs", "security", "encryption", "mfa",
-    "access key", "bucket", "instance", "role", "policy", "firewall", 
-    "compliance", "vulnerability", "misconfiguration", "cloud", "remediation",
-    "cloudsentinel", "dashboard", "scan", "finding", "severity", "risk"
+    # Core AWS
+    "aws", "s3", "ec2", "iam", "vpc", "ebs",
+
+    # Security concepts
+    "security", "encryption", "mfa",
+    "access key", "bucket", "instance",
+    "role", "policy", "firewall",
+    "compliance", "vulnerability",
+    "misconfiguration", "cloud",
+    "remediation", "mitigation",
+    "fix", "solve", "secure",
+
+    # CloudSentinel
+    "cloudsentinel", "dashboard",
+    "scan", "finding", "severity", "risk",
+
+    # Actual finding names
+    "imdsv1",
+    "publicly open s3 bucket",
+    "unrestricted outbound traffic",
+    "over-permissive iam",
+    "network segmentation",
+    "wide-open ingress",
+    "stale access keys",
+    "password policy",
+    "unencrypted ebs",
+    "flow logs",
+    "versioning disabled"
 }
 
 def format_cli_command(text):
-    """
-    Format long CLI commands to break them into multiple readable lines.
-    Adds backslash continuation for better UI display.
-    """
+    # Helper function: Formats AWS CLI commands with line breaks for better readability in UI
     import re
     
     # Find CLI command blocks
@@ -56,38 +77,65 @@ def format_cli_command(text):
 
 def is_query_in_scope(user_query):
     """
-    Validate if query is within CloudSentinel scope.
-    Returns True if related to AWS security, False for off-topic queries.
+    Validates if query is related to AWS security / CloudSentinel
     """
-    query_lower = user_query.lower()
-    
-    # ALLOW: Greeting and capability questions
-    greeting_keywords = ["hi", "hello", "hey", "greetings", "what can", "what do", "who are", "tell me about", "help", 
-                        "explain cloudsentinel", "what is cloudsentinel", "capabilities",
-                        "features", "describe yourself", "what's your purpose", "how do i use",
-                        "introduce yourself", "info", "information", "overview", "start"]
-    
-    for greeting in greeting_keywords:
-        if greeting in query_lower:
-            return True  # Allow all greeting/capability questions
-    
-    # REJECT: Obvious out-of-scope topics (only if NO AWS keywords present)
-    out_of_scope = ["weather", "recipe", "movie", "music", "sports", "joke", 
-                    "politics", "travel advice", "medical", "legal advice",
-                    "book recommendation", "cooking", "sports"]
-    
-    query_has_out_of_scope = any(phrase in query_lower for phrase in out_of_scope)
-    query_has_scope_keyword = any(keyword in query_lower for keyword in SCOPE_KEYWORDS)
-    
-    # Reject only if it's out-of-scope AND has NO AWS keywords
-    if query_has_out_of_scope and not query_has_scope_keyword:
+    query_lower = user_query.lower().strip()
+
+    # 1. Always allow greetings / capability questions
+    greeting_keywords = [
+        "hi", "hello", "hey", "greetings",
+        "what can", "what do", "who are",
+        "tell me about", "help",
+        "explain cloudsentinel",
+        "what is cloudsentinel",
+        "capabilities", "features",
+        "describe yourself", "what's your purpose",
+        "how do i use", "introduce yourself",
+        "info", "information", "overview", "start"
+    ]
+
+    if any(word in query_lower for word in greeting_keywords):
+        return True
+
+    # 2. Detect AWS/security context
+    has_scope_keyword = any(
+        keyword in query_lower
+        for keyword in SCOPE_KEYWORDS
+    )
+
+    # 3. Detect remediation intent (VERY IMPORTANT FIX)
+    remediation_keywords = [
+        "how to", "fix", "solve", "mitigate",
+        "remediate", "secure", "protect",
+        "resolve", "best practice"
+    ]
+
+    has_remediation_intent = any(
+        word in query_lower
+        for word in remediation_keywords
+    )
+
+    # 4. Block obvious unrelated topics
+    out_of_scope = [
+        "weather", "recipe", "movie", "music",
+        "sports", "joke", "politics",
+        "travel advice", "medical",
+        "legal advice", "book recommendation",
+        "cooking"
+    ]
+
+    is_definitely_outside = any(
+        word in query_lower for word in out_of_scope
+    )
+
+    # 5. FINAL DECISION LOGIC
+    if is_definitely_outside and not has_scope_keyword:
         return False
-    
-    # Check if query contains at least one scope keyword OR is a greeting
-    return query_has_scope_keyword
+
+    return has_scope_keyword or has_remediation_intent
 
 def get_detailed_config_context(config_id, service):
-    # Dives into service-specific tables to extractt the exact technical state for the LLM
+    # Retrieves detailed configuration data for a specific AWS service to provide LLM context
     header = AWSConfig.query.get(config_id)
     if not header:
         return "No specific resource data found."
@@ -139,6 +187,7 @@ def get_detailed_config_context(config_id, service):
     return details
 
 def get_sentinel_response(user_query, result_item_id=None):
+    # Main LLM handler: Processes user queries and returns AI-powered security insights
     # STEP 1: Validate query is in scope
     if not is_query_in_scope(user_query):
         return (
@@ -150,9 +199,44 @@ def get_sentinel_response(user_query, result_item_id=None):
     # STEP 2: Gather database context ONLY if user explicitly asks about a specific finding
     # Check if user is asking about "this", "finding", "result", "issue", etc.
     context_packet = ""
-    explicit_finding_keywords = ["this", "finding", "result", "issue", "analyze", "tell me about", 
-                                 "what is", "explain", "how to fix", "remediate", "solution"]
-    asking_about_finding = any(keyword in user_query.lower() for keyword in explicit_finding_keywords)
+    explicit_finding_keywords = [
+        # generic references
+        "this", "finding", "result", "issue",
+
+        # explanation intent
+        "what is", "explain", "tell me about", "analyze",
+
+        # remediation intent
+        "fix", "solve", "mitigate", "remediate",
+        "secure", "patch", "resolve",
+        "how to fix", "how to solve",
+        "how to mitigate", "how to remediate",
+
+        # AWS security intent
+        "best practice", "recommendation",
+        "protection", "hardening"
+    ]
+    MISCONFIG_NAMES = [
+        "publicly open s3 bucket",
+        "unrestricted outbound traffic",
+        "over-permissive iam",
+        "no network segmentation",
+        "wide-open ingress",
+        "lack of mfa",
+        "stale access keys",
+        "s3 bucket versioning disabled",
+        "imdsv1 enabled",
+        "weakly enforced password policy",
+        "unencrypted ebs volumes",
+        "flow logs"
+    ]
+    query_lower = user_query.lower()
+
+    asking_about_finding = (
+        any(keyword in query_lower for keyword in explicit_finding_keywords)
+        or
+        any(misconfig in query_lower for misconfig in MISCONFIG_NAMES)
+    )
     
     if result_item_id and asking_about_finding:
         # Only include finding context if user explicitly asks about it
@@ -160,10 +244,10 @@ def get_sentinel_response(user_query, result_item_id=None):
         if item:
             tech_details = get_detailed_config_context(item.config_id, item.aws_service)
             context_packet = f"""
-[FINDING] {item.aws_service} | Severity: {item.severity}
-Rule: {item.misconfig_name}
-Technical Data: {tech_details}
-"""
+            [FINDING] {item.aws_service} | Severity: {item.severity}
+            Rule: {item.misconfig_name}
+            Technical Data: {tech_details}
+            """
 
     # STEP 3: ULTRA-CONCISE system instruction (both methods: Console + CLI)
     system_instruction = (
@@ -213,4 +297,19 @@ Technical Data: {tech_details}
         
         return response_text
     except Exception as e:
-        return f"SentinelAI is currently unavailable. Error: {str(e)}"
+        error_str = str(e)
+
+        # 🚨 HANDLE GEMINI 503 CLEANLY (NO RAW ERROR)
+        if "503" in error_str or "UNAVAILABLE" in error_str:
+            return (
+                "⚠️ SentinelAI is temporarily busy.\n\n"
+                "Please try again in a few seconds.\n\n"
+                "💡 Quick fix for IMDSv1:\n"
+                "Go to EC2 → Modify metadata options → Enable IMDSv2"
+            )
+
+        # 🚨 ANY OTHER ERROR (ALSO CLEAN)
+        return (
+            "⚠️ Something went wrong while processing your request.\n"
+            "Please try again later."
+        )

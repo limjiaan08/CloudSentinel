@@ -5,8 +5,8 @@
 
 const TOKEN_KEY = 'authToken';
 const TOKEN_EXPIRY_KEY = 'tokenExpiry';
-const USER_ID_KEY = 'userId';
-const SESSION_ID_KEY = 'sessionId';
+const USER_ID_KEY = 'user_id';  // Match what SignIn.jsx stores
+const SESSION_ID_KEY = 'session_id';  // Match what SignIn.jsx stores
 
 /**
  * Store authentication token and expiry time
@@ -139,6 +139,50 @@ export const triggerAutoLogout = async () => {
 };
 
 /**
+ * Renew an expired token
+ * Frontend calls this when user clicks 'Renew' on the expiration popup
+ */
+export const renewToken = async () => {
+  const userId = localStorage.getItem(USER_ID_KEY);
+  
+  if (!userId) {
+    console.error('User ID not found. Cannot renew token.');
+    return null;
+  }
+
+  try {
+    const response = await fetch(`http://localhost:5000/auth/renew-token/${userId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+    
+    if (data.status === 'success') {
+      // Store the new token
+      storeToken(data.token, data.token_expiry, data.user_id, data.session_id);
+      console.log('✅ Token renewed successfully');
+      return data;
+    } else {
+      console.error('Token renewal failed:', data.error);
+      return null;
+    }
+  } catch (error) {
+    console.error('Token renewal error:', error);
+    return null;
+  }
+};
+
+/**
+ * Get user ID stored in localStorage
+ */
+export const getUserId = () => {
+  return localStorage.getItem(USER_ID_KEY);
+};
+
+/**
  * Set up automatic logout timer
  * Logs out user 1 minute before token expires
  */
@@ -178,7 +222,9 @@ export const useTokenExpiration = () => {
     getTimeUntilExpiry,
     formatTimeRemaining,
     clearAuthData,
+    getUserId,
     verifyTokenWithBackend,
+    renewToken,
     triggerAutoLogout,
     setupAutoLogoutTimer
   };

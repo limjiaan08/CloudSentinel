@@ -231,7 +231,7 @@ const Profile = ({ user }) => {
                 
                 {/* --- SECTION 1: BASIC INFORMATION --- */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-6">
-                    <h3 className="text-[18px] font-bold text-slate-900 mb-5 flex items-center gap-2">
+                    <h3 className="text-[16px] font-bold text-slate-900 mb-5 flex items-center gap-3 uppercase tracking-wider">
                         <div className="bg-blue-100 p-2 rounded-lg">
                             <Mail size={18} className="text-blue-600" />
                         </div>
@@ -271,7 +271,7 @@ const Profile = ({ user }) => {
                                 </div>
                             ) : (
                                 <div className="flex justify-between items-center bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4">
-                                    <span className="text-[15px] font-semibold text-slate-800">{profile.user_name}</span>
+                                    <span className="text-[15px] font-medium text-slate-700">{profile.user_name}</span>
                                     <button
                                         onClick={() => setEditingName(true)}
                                         className="text-[#FF9900] hover:text-[#D17D00] transition-colors"
@@ -287,7 +287,7 @@ const Profile = ({ user }) => {
                         <div>
                             <label className="text-[13px] font-bold uppercase tracking-wider text-slate-600 block mb-2">Email Address</label>
                             <div className="bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-slate-500">
-                                <span className="text-[15px] font-semibold text-slate-800">{profile.user_email}</span>
+                                <span className="text-[15px] font-medium text-slate-700">{profile.user_email}</span>
                             </div>
                         </div>
 
@@ -296,7 +296,7 @@ const Profile = ({ user }) => {
                             <label className="text-[13px] font-bold uppercase tracking-wider text-slate-600 block mb-2">Account Created</label>
                             <div className="bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 flex items-center gap-4">
                                 <Calendar size={16} className="text-slate-400" />
-                                <span className="text-[15px] font-medium text-slate-800">{formatDate(profile.created_at)}</span>
+                                <span className="text-[15px] font-medium text-slate-700">{formatDate(profile.created_at)}</span>
                             </div>
                         </div>
 
@@ -312,7 +312,7 @@ const Profile = ({ user }) => {
 
                 {/* --- SECTION 2: SESSION & LOGIN INFO --- */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-6">
-                    <h3 className="text-[18px] font-bold text-slate-900 mb-5 flex items-center gap-2">
+                    <h3 className="text-[16px] font-bold text-slate-900 mb-5 flex items-center gap-3 uppercase tracking-wider">
                         <div className="bg-purple-100 p-2 rounded-lg">
                             <Clock size={18} className="text-purple-600" />
                         </div>
@@ -324,7 +324,7 @@ const Profile = ({ user }) => {
                         <div>
                             <label className="text-[13px] font-bold uppercase tracking-wider text-slate-600 block mb-2">Last Login</label>
                             <div className="bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4">
-                                <span className="text-[15px] font-medium text-slate-800">
+                                <span className="text-[15px] font-medium text-slate-700">
                                     {profile.last_login ? formatDate(profile.last_login) : 'N/A'}
                                 </span>
                             </div>
@@ -335,7 +335,7 @@ const Profile = ({ user }) => {
                             <label className="text-[13px] font-bold uppercase tracking-wider text-slate-600 block mb-2">Last Session Duration</label>
                             <div className="bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4">
                                 {profile.last_session_duration !== null && profile.last_session_duration !== undefined ? (
-                                    <span className="text-[15px] font-medium text-slate-800">
+                                    <span className="text-[15px] font-medium text-slate-700">
                                         {Math.floor(profile.last_session_duration / 3600) > 0 &&
                                             `${Math.floor(profile.last_session_duration / 3600)}h `}
                                         
@@ -356,7 +356,7 @@ const Profile = ({ user }) => {
                         <div>
                             <label className="text-[13px] font-bold uppercase tracking-wider text-slate-600 block mb-2">Token Expiry Time</label>
                             <div className="bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4">
-                                <span className="text-[15px] font-medium text-slate-800">
+                                <span className="text-[15px] font-medium text-slate-700">
                                     {profile.token_expiry ? formatDate(profile.token_expiry) : 'N/A'}
                                 </span>
                             </div>
@@ -384,7 +384,7 @@ const Profile = ({ user }) => {
 
                 {/* --- SECTION 3: TOKEN & SECURITY STATUS --- */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 lg:col-span-2 mb-6">
-                    <h3 className="text-[18px] font-bold text-slate-900 mb-5 flex items-center gap-2">
+                    <h3 className="text-[16px] font-bold text-slate-900 mb-5 flex items-center gap-3 uppercase tracking-wider">
                         <div className="bg-green-100 p-2 rounded-lg">
                             <Shield size={18} className="text-green-600" />
                         </div>
@@ -410,18 +410,18 @@ const Profile = ({ user }) => {
                                 )}
                                 <div>
                                     <p className="text-[12px] font-bold uppercase tracking-wider text-slate-600">Token Status</p>
-                                    <p className={`text-[16px] font-bold ${tokenStatus?.valid ? 'text-green-700' : 'text-red-700'}`}>
+                                    <p className={`text-[16px] font-bold uppercase tracking-wide ${tokenStatus?.valid ? 'text-green-700' : 'text-red-700'}`}>
                                         {tokenStatus?.valid ? 'Valid' : 'Invalid/Expired'}
                                     </p>
                                 </div>
                             </div>
-                            <p className="text-[13px] text-slate-600 font-medium">
+                            <p className="text-[13px] text-slate-600 font-medium tracking-wide">
                                 {tokenStatus?.message || 'Checking token status...'}
                             </p>
                             <button
                                 onClick={verifyTokenStatus}
                                 disabled={verifyingToken}
-                                className="mt-3 w-full bg-slate-300 hover:bg-slate-400 disabled:opacity-50 text-slate-700 font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                                className="mt-3 w-full bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white font-bold py-2 rounded-lg transition-colors flex items-center justify-center gap-2 tracking-wide"
                             >
                                 {verifyingToken ? (
                                     <>
@@ -445,16 +445,16 @@ const Profile = ({ user }) => {
                                 </div>
                                 <div>
                                     <p className="text-[12px] font-bold uppercase tracking-wider text-slate-600">Re-Authentication</p>
-                                    <p className="text-[16px] font-bold text-orange-700">Refresh Session</p>
+                                    <p className="text-[16px] font-bold uppercase tracking-wide text-orange-700">Refresh Session</p>
                                 </div>
                             </div>
-                            <p className="text-[13px] text-slate-600 font-medium mb-3">
+                            <p className="text-[13px] text-slate-600 font-medium mb-3 tracking-wide">
                                 Generate a new token and refresh your session to extend your access time.
                             </p>
                             <button
                                 onClick={handleReAuthenticate}
                                 disabled={reAuthLoading}
-                                className="w-full bg-[#FF9900] hover:bg-[#D17D00] disabled:opacity-50 text-white font-bold py-2.5 rounded-lg transition-all flex items-center justify-center gap-2"
+                                className="w-full bg-[#FF9900] hover:bg-[#D17D00] disabled:opacity-50 text-white font-bold py-2.5 rounded-lg transition-all flex items-center justify-center gap-2 tracking-wide"
                             >
                                 {reAuthLoading ? (
                                     <>

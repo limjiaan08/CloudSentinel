@@ -5,16 +5,18 @@ import pytz
 from models import db, Result, ResultItem, PredefinedRule, AWSConfig, S3Config, EBSConfig, IAMConfig, VPCConfig, EC2Config, Scan
 
 def get_my_time():
+    # Returns naive datetime in Malaysia timezone for database compatibility
     kl_tz = pytz.timezone('Asia/Kuala_Lumpur')
-    # Returns naive datetime for database compatibility
     return datetime.now(kl_tz).replace(tzinfo=None)
 
 def run_analysis(scan_id, target_model="Vuln"):
+    # Main analysis engine: Runs security rules against fetched AWS resources and generates findings
     # --- 1. FETCH ACTUAL START TIME ---
     scan_record = db.session.get(Scan, scan_id)
     actual_start_time = scan_record.start_time if scan_record else get_my_time()
 
     def is_cancelled():
+        # Helper function: Checks if scan has been cancelled by user and stops processing
         db.session.expire_all()
         s = db.session.get(Scan, scan_id)
         return s and s.scan_status == 'CANCELLED'
@@ -30,8 +32,8 @@ def run_analysis(scan_id, target_model="Vuln"):
     db.session.add(new_result)
     db.session.flush() 
 
-    # --- HELPER FUNCTION ---
     def add_finding(config_id, rule_id, resource_name):
+        # Helper function: Records a security finding when a rule violation is detected
         rule = db.session.get(PredefinedRule, rule_id)
         if not rule:
             print(f"      [!] ERROR: Rule {rule_id} not found!")

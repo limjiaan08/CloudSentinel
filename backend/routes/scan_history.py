@@ -6,8 +6,9 @@ scan_history_bp = Blueprint('scan_history', __name__)
 
 @scan_history_bp.route('/scan-history/<user_id>', methods=['GET'])
 def get_scan_history(user_id):
+    # Endpoint: Retrieves user's scan history with severity breakdowns for each completed scan
     try:
-        # Count findings by severity for every Result ---
+        # Aggregate finding counts by severity level for each scan result
         severity_counts = db.session.query(
             ResultItem.result_id,
             func.count(func.nullif(ResultItem.severity != 'High', True)).label('high'),
@@ -15,8 +16,7 @@ def get_scan_history(user_id):
             func.count(func.nullif(ResultItem.severity != 'Low', True)).label('low')
         ).group_by(ResultItem.result_id).subquery()
 
-        # --- 2. Main Query ---
-        # Combine Scan info with the counts calculated in the subquery above
+        # Join scan metadata with severity aggregations to build complete history
         history_query = db.session.query(
             Scan,
             severity_counts.c.high,
@@ -32,7 +32,7 @@ def get_scan_history(user_id):
         print(f"🔎 SCAN HISTORY REQUEST FOR: {user_id}")
         print(f"📊 DATABASE FOUND: {len(history_query)} RECORD(S)")
 
-        # --- 3. Format result for Frontend ---
+        # Format database results into frontend-friendly JSON structure
         history_list = []
         for scan, high, med, low in history_query:
             history_list.append({

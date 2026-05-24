@@ -6,11 +6,12 @@ result_fetching_bp = Blueprint('result_fetching', __name__)
 
 @result_fetching_bp.route('/scan-results/<scan_id>', methods=['GET'])
 def get_scan_results(scan_id):
+    # Endpoint: Retrieves scan findings with authorization checks and support for 'latest' scan lookups
     try:
         user_id = request.args.get('user_id')
         target_scan_id = None
 
-        # --- 1. HANDLE "LATEST" LOGIC ---
+        # Handle 'latest' to fetch most recent completed scan
         if scan_id == "latest":
             if not user_id:
                 return jsonify({"error": "user_id is required"}), 400
@@ -28,8 +29,7 @@ def get_scan_results(scan_id):
             # If a specific UUID is passed (from History), we use it directly
             target_scan_id = scan_id
 
-        # --- 2. SECURITY & DATA VALIDATION ---
-        # Fetch the scan object to verify ownership and existence
+        # Validate scan ownership and existence before returning results
         actual_scan = Scan.query.filter_by(scan_id=target_scan_id).first()
         
         if not actual_scan:
@@ -39,8 +39,7 @@ def get_scan_results(scan_id):
         if user_id and str(actual_scan.user_id).lower() != str(user_id).lower():
             return jsonify({"error": "Unauthorized access to this scan"}), 403
 
-        # --- 3. FETCH RESULT HEADERS AND ITEMS ---
-        # Get the Result header linked to the scan_id
+        # Fetch findings linked to the scan result
         result_header = Result.query.filter_by(scan_id=target_scan_id).first()
         
         if not result_header:

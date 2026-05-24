@@ -8,6 +8,7 @@ scanner_bp = Blueprint('scanner', __name__)
 
 @scanner_bp.route('/scan-s3', methods=['POST'])
 def start_scan():
+    # Endpoint: Initiates S3 bucket scanning with AWS credentials
     data = request.get_json()
 
     access_key = data.get('access_key')

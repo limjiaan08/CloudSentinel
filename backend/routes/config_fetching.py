@@ -15,7 +15,7 @@ def get_my_time():
 
 @config_fetching_bp.route('/fetch-config', methods=['POST'])
 def fetch_config():
-    # Retrieve scan parameters and credentials from the frontend
+    # Endpoint: Fetches AWS resource configurations across all services using provided credentials
     data = request.get_json()
     scan_id = data.get('scan_id')
     access_key = data.get('accessKey')
@@ -44,10 +44,8 @@ def fetch_config():
         # Initialize specific AWS service clients for use in subsequent scan steps
         s3_client, iam_client, ec2_client = session.client('s3'), session.client('iam'), session.client('ec2')
 
-        # --- KILL SWITCH HELPER ---
+        # Helper function: Checks for cancellation signal to abort scan gracefully
         def check_and_abort():
-            # Check the DB to see if the scan status has changed to CANCELLED
-            # Prevent further AWS API calss and roll back DB changes
             db.session.expire_all() # Forces DB refresh
             s = db.session.get(Scan, scan_id)
             if s and s.scan_status == 'CANCELLED':
@@ -55,8 +53,7 @@ def fetch_config():
                 return True
             return False
         
-        # --- 1. S3 SCAN ---
-        # Check for a cancellation signal
+        # Phase 1: Fetches S3 bucket configurations and checks for public access, encryption, and versioning
         if check_and_abort(): return jsonify({"status": "cancelled"}), 200
         print("\n📂 [1/6] Fetching S3 Bucket Configurations...")
 
@@ -99,7 +96,7 @@ def fetch_config():
                 except ClientError: continue 
         except Exception as e: print(f"S3 ERROR: {e}")
 
-        # --- 2. EBS SCAN ---
+        # Phase 2: Fetches EBS volume configurations and checks encryption status
         if check_and_abort(): return jsonify({"status": "cancelled"}), 200
         print("\n💾 [2/6] Fetching EBS Volume Configurations...")
 
@@ -116,7 +113,7 @@ def fetch_config():
                 db.session.flush()
                 db.session.add(EBSConfig(config_id=header.config_id, encryption_enabled=bool(v.get('Encrypted'))))
 
-        # --- 3. IAM SCAN ---
+        # Phase 3: Fetches IAM configurations including MFA status, key age, and password policies
         if check_and_abort(): return jsonify({"status": "cancelled"}), 200
         print("\n🔐 [3/6] Fetching IAM Configurations...")
 
