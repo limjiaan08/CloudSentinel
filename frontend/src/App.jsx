@@ -5,6 +5,7 @@ import SignUp from './SignUp';
 import Dashboard from './Dashboard';
 import ResetPassword from './ResetPassword';
 import TokenExpirationModal from './TokenExpirationModal';
+import { apiUrl } from './config/apiConfig';
 
 function App() {
   const [user, setUser] = useState(() => {
@@ -58,7 +59,7 @@ function App() {
     
     if (token || sessionId) {
       try {
-        await fetch('http://localhost:5000/auth/logout', {
+        await fetch(`${apiUrl}/auth/logout`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',

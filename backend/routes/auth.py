@@ -69,23 +69,39 @@ def verify_jwt_token(token):
 def signup():
     # Endpoint: Creates a new user account with email verification and secure password storage
     data = request.get_json()
-    data = request.get_json()
  
     # Presence validation for required fields
     if not data or not data.get('name') or not data.get('email') or not data.get('password'):
         return jsonify({"error": "Missing name, email or password"}), 400
     
+    # Input validation
+    name = data.get('name', '').strip()
+    email = data.get('email', '').strip()
+    password = data.get('password', '')
+    
+    # Validate name length (3-100 chars)
+    if not name or len(name) < 3 or len(name) > 100:
+        return jsonify({"error": "Name must be between 3 and 100 characters"}), 400
+    
+    # Validate email format
+    if '@' not in email or len(email) < 5 or len(email) > 255:
+        return jsonify({"error": "Invalid email format"}), 400
+    
+    # Validate password strength (min 8 chars)
+    if len(password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters long"}), 400
+    
     # Check for duplicate email
-    if User.query.filter_by(user_email=data['email']).first():
+    if User.query.filter_by(user_email=email).first():
         return jsonify({"error": "Email already exists"}), 409
     
     # Hash the password
-    hashed_password = bcrypt.generate_password_hash(data['password']).decode('utf-8')
+    hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
 
     # Create user
     new_user = User(
-        user_name = data['name'],
-        user_email = data['email'],
+        user_name = name,
+        user_email = email,
         user_password = hashed_password,
         created_at = get_my_time()
     )
@@ -256,6 +272,10 @@ def reset_password(token):
 
     if not new_password:
         return jsonify({"error": "New password is required"}), 400
+    
+    # Validate password strength (min 8 chars)
+    if len(new_password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters long"}), 400
 
     user = User.query.filter_by(user_email=email).first()
     if user:

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MessageSquare, Send, X, Bot, Sparkles, Copy, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { apiUrl } from './config/apiConfig';
 
 const SentinelChat = ({ selectedFindingId = null }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -30,7 +31,7 @@ const SentinelChat = ({ selectedFindingId = null }) => {
     try {
       const token = localStorage.getItem('authToken');
       
-      const response = await fetch('http://localhost:5000/api/chat', {
+      const response = await fetch(`${apiUrl}/api/chat`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

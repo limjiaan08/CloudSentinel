@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Check, Database, FileText, AlertCircle, ShieldCheck, Loader2, Filter as FilterIcon, ChevronDown, Clock, Search, ArrowLeft, HistoryIcon } from 'lucide-react';
 import axios from 'axios';
+import { apiUrl } from './config/apiConfig';
 
 const Findings = ({ scanId: propScanId, user }) => { 
   const location = useLocation();
@@ -30,7 +31,7 @@ const Findings = ({ scanId: propScanId, user }) => {
 
         // 1. ALWAYS fetch history to find the most recent COMPLETED scan
         // This ensures we ignore any 'CANCELLED' scans without needing a refresh
-        const historyRes = await axios.get(`http://localhost:5000/api/scan-history/${uid}`);
+        const historyRes = await axios.get(`${apiUrl}/api/scan-history/${uid}`);
         const validScans = historyRes.data.scans.filter(s => s.scan_status === 'COMPLETED');
 
         if (!validScans || validScans.length === 0) {
@@ -48,7 +49,7 @@ const Findings = ({ scanId: propScanId, user }) => {
         setHasHistoryRecord(true);
 
         // 3. Fetch Results for the resolved ID
-        const response = await axios.get(`http://localhost:5000/api/scan-results/${currentId}`, {
+        const response = await axios.get(`${apiUrl}/api/scan-results/${currentId}`, {
           params: { user_id: uid } 
         });
 

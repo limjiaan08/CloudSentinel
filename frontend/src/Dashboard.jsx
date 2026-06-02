@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { AlertTriangle, Clock, LayoutDashboard, Search, History as HistoryIcon, User, LogOut, Play, AlertCircle, RefreshCw, Rocket, 
     Database, Zap, ShieldCheck, Activity, ChevronRight, PieChart as PieIcon, Globe
- } from 'lucide-react'; 
+ } from 'lucide-react';
+import { apiUrl } from './config/apiConfig'; 
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import logoImg from './assets/cloudsentinel_logo.png';
 import Findings from './Findings'; 
@@ -41,7 +42,7 @@ const Dashboard = ({ onLogout, user }) => {
                 const uid = user?.user_id || user?.id;
                 
                 // 1. Fetch History
-                const historyRes = await fetch(`http://localhost:5000/api/scan-history/${uid}`);
+                const historyRes = await fetch(`${apiUrl}/api/scan-history/${uid}`);
                 const historyData = await historyRes.json();
                 
                 if (historyRes.ok && historyData.scans?.length > 0) {
@@ -55,7 +56,7 @@ const Dashboard = ({ onLogout, user }) => {
                         const latestId = lastCompleted.scan_id;
 
                         // 2. Fetch the actual Result Items for this COMPLETED scan
-                        const resultsRes = await fetch(`http://localhost:5000/api/scan-results/${latestId}`);
+                        const resultsRes = await fetch(`${apiUrl}/api/scan-results/${latestId}`);
                         const resultsData = await resultsRes.json();
                         
                         // Map the results to findings state
@@ -193,7 +194,7 @@ const Dashboard = ({ onLogout, user }) => {
         let progressInterval;
 
         try {
-            const verifyResponse = await fetch('http://localhost:5000/api/verify-aws', {
+            const verifyResponse = await fetch(`${apiUrl}/api/verify-aws`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ...scanData, userId: user?.user_id || user?.id }),
@@ -225,7 +226,7 @@ const Dashboard = ({ onLogout, user }) => {
                     });
                 }, 150);
 
-                const fetchResponse = await fetch('http://localhost:5000/api/fetch-config', {
+                const fetchResponse = await fetch(`${apiUrl}/api/fetch-config`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ ...scanData, scan_id: scanId }),
@@ -289,7 +290,7 @@ const Dashboard = ({ onLogout, user }) => {
         // 3. Backend Sync: Tell Flask to update status to CANCELLED and DELETE data
         try {
             if (idToStop) {
-                await fetch(`http://localhost:5000/api/cancel-scan/${idToStop}`, {
+                await fetch(`${apiUrl}/api/cancel-scan/${idToStop}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 });

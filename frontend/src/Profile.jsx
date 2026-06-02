@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Mail, Calendar, Clock, Lock, Shield, Edit2, Check, X, AlertCircle, CheckCircle2, Loader2, LogOut, RefreshCw } from 'lucide-react';
+import { apiUrl } from './config/apiConfig';
 
 const Profile = ({ user }) => {
     const [profile, setProfile] = useState(null);
@@ -28,7 +29,7 @@ const Profile = ({ user }) => {
         try {
             setLoading(true);
             const userId = user?.user_id || user?.id;
-            const response = await fetch(`http://localhost:5000/auth/user/${userId}`, {
+            const response = await fetch(`${apiUrl}/auth/user/${userId}`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -54,7 +55,7 @@ const Profile = ({ user }) => {
     const verifyTokenStatus = async () => {
         try {
             setVerifyingToken(true);
-            const response = await fetch('http://localhost:5000/auth/verify-token', {
+            const response = await fetch(`${apiUrl}/auth/verify-token`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -99,7 +100,7 @@ const Profile = ({ user }) => {
 
         try {
             const userId = user?.user_id || user?.id;
-            const response = await fetch(`http://localhost:5000/auth/user/${userId}`, {
+            const response = await fetch(`${apiUrl}/auth/user/${userId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -129,7 +130,7 @@ const Profile = ({ user }) => {
         try {
             setReAuthLoading(true);
             const userId = user?.user_id || user?.id;
-            const response = await fetch(`http://localhost:5000/auth/user/${userId}/re-authenticate`, {
+            const response = await fetch(`${apiUrl}/auth/user/${userId}/re-authenticate`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

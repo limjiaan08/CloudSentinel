@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import logoImg from './assets/cloudsentinel_logo.png'; 
 /* Make sure lucide-react is installed: npm install lucide-react */
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Circle, CheckCircle2 } from 'lucide-react';
+import { apiUrl } from './config/apiConfig';
 
 function SignUp() {
   const [fullName, setFullName] = useState('');
@@ -18,10 +19,27 @@ function SignUp() {
 
   const navigate = useNavigate();
 
+  // Validation logic
+  const isNameValid = fullName.length >= 3 && fullName.length <= 100;
+  const isPasswordValid = password.length >= 8;
+
   const handleSignUp = async (e) => {
     e.preventDefault();
     setLoading(true);
     setMessage({text: '', isError: false});
+
+    // Frontend validation before submitting
+    if (!isNameValid) {
+        setMessage({text: "Name must be between 3 and 100 characters", isError: true});
+        setLoading(false);
+        return;
+    }
+
+    if (!isPasswordValid) {
+        setMessage({text: "Password must be at least 8 characters long", isError: true});
+        setLoading(false);
+        return;
+    }
 
     if(password !== confirmPassword){
         setMessage({text: "Passwords do not match!", isError:true});
@@ -30,7 +48,7 @@ function SignUp() {
     }
 
     try {
-        const response = await fetch('http://127.0.0.1:5000/auth/signup', {
+        const response = await fetch(`${apiUrl}/auth/signup`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -97,6 +115,22 @@ function SignUp() {
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
               />
+              
+              {/* Dynamic Name Length Indicator */}
+              <div className="flex items-center gap-1.5 pt-1 pl-1">
+                {fullName.length === 0 ? (
+                  <Circle size={14} className="text-slate-300" />
+                ) : isNameValid ? (
+                  <CheckCircle2 size={14} className="text-emerald-500 fill-emerald-550" />
+                ) : (
+                  <Circle size={14} className="text-amber-500" />
+                )}
+                <span className={`text-xs font-semibold tracking-wide transition-colors duration-300 ${
+                  fullName.length === 0 ? 'text-slate-400' : isNameValid ? 'text-emerald-600' : 'text-amber-500'
+                }`}>
+                  Must be 3 - 100 characters ({fullName.length}/100)
+                </span>
+              </div>
             </div>
 
             {/* Email Field */}
@@ -131,6 +165,22 @@ function SignUp() {
                   {showPassword ? <EyeOff size={22} /> : <Eye size={22} />}
                 </button>
               </div>
+              
+              {/* Dynamic Password Validation Badge */}
+              <div className="flex items-center gap-1.5 pt-1 pl-1">
+                {password.length === 0 ? (
+                  <Circle size={14} className="text-slate-300" />
+                ) : isPasswordValid ? (
+                  <CheckCircle2 size={14} className="text-emerald-500 fill-emerald-50" />
+                ) : (
+                  <Circle size={14} className="text-amber-500" />
+                )}
+                <span className={`text-xs font-semibold tracking-wide transition-colors duration-300 ${
+                  password.length === 0 ? 'text-slate-400' : isPasswordValid ? 'text-emerald-600' : 'text-amber-500'
+                }`}>
+                  Minimum 8 characters required
+                </span>
+              </div>
             </div>
 
             {/* Confirm Password Field */}
@@ -156,7 +206,8 @@ function SignUp() {
             </div>
 
             <button 
-              type="submit" disabled={loading}
+              type="submit" 
+              disabled={loading || !isNameValid || !isPasswordValid || password !== confirmPassword}
               className="w-full bg-[#FF9900] hover:bg-[#D17D00] text-white font-bold py-4 rounded-2xl shadow-lg transition-all active:scale-[0.98] mt-4 disabled:opacity-50 disabled:cursor-not-allowed">
               {loading ? "Creating Account..." : "Sign Up"}
             </button>

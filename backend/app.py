@@ -30,8 +30,9 @@ app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER')
 mail.init_app(app)
 
 # --- CORS Configuration ---
+frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 CORS(app, resources={r"/*": {
-    "origins": "http://localhost:5173",
+    "origins": frontend_url,
     "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     "allow_headers": ["Content-Type", "Authorization"]
 }})
@@ -60,4 +61,4 @@ def home():
     return "CloudSentinel API is running"
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=False, port=5000)

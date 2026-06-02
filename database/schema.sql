@@ -23,35 +23,56 @@ INSERT IGNORE INTO predefined_rule (rule_id, rule_name, aws_service, cnas_catego
 ('RULE-VPC-01', 'No Network Segmentation Defined', 'VPC', 'CNAS-6', 'Network resources are not properly isolated', 'MEDIUM'),
 ('RULE-SG-01', 'Wide-Open Ingress Allowed by Security Group', 'VPC, EC2', 'CNAS-6', 'Inbound traffic is allowed from all sources', 'HIGH'),
 ('RULE-VPC-02', 'Unenabled Flow Logs for VPC', 'VPC', 'CNAS-6', 'Network traffic logging is disabled', 'LOW'),
-('RULE-SG-03', 'Publicly Exposed Database Port', 'EC2', 'CNAS-6', 'Critical database management ports are open to the public internet', 'HIGH');
+('RULE-SG-03', 'Publicly Exposed Database Port', 'EC2', 'CNAS-6', 'Critical database management ports are open to the public internet', 'HIGH'),
+('RULE-SG-04', 'Unrestricted Outbound Traffic Allowed by Security Group', 'VPC', 'CNAS-6', 'Security Group allows all traffic to leave the instance to any destination', 'MEDIUM');
 
 USE cloudsentinel_db;
 
 SET FOREIGN_KEY_CHECKS = 0;
 
--- 1. Clear Findings and Results
-TRUNCATE TABLE result_item;
-TRUNCATE TABLE results;
+-- 1. Clear Findings and Results (DISABLED FOR PRODUCTION - PREVENTS ACCIDENTAL DATA LOSS)
+-- TRUNCATE TABLE result_item;
+-- TRUNCATE TABLE results;
 
--- 2. Clear AWS Configuration Details
-TRUNCATE TABLE s3_config;
-TRUNCATE TABLE ebs_config;
-TRUNCATE TABLE iam_config;
-TRUNCATE TABLE vpc_config;
-TRUNCATE TABLE ec2_config;
+-- 2. Clear AWS Configuration Details (DISABLED FOR PRODUCTION - PREVENTS ACCIDENTAL DATA LOSS)
+-- TRUNCATE TABLE s3_config;
+-- TRUNCATE TABLE ebs_config;
+-- TRUNCATE TABLE iam_config;
+-- TRUNCATE TABLE vpc_config;
+-- TRUNCATE TABLE ec2_config;
 
--- 3. Clear Headers and Scan History
-TRUNCATE TABLE aws_config;
-TRUNCATE TABLE scan;
+-- 3. Clear Headers and Scan History (DISABLED FOR PRODUCTION - PREVENTS ACCIDENTAL DATA LOSS)
+-- TRUNCATE TABLE aws_config;
+-- TRUNCATE TABLE scan;
 
 -- Re-enable foreign key checks
 SET FOREIGN_KEY_CHECKS = 1;
 
-SELECT 
-    ac.resource_name, 
-    ac.resource_type, 
-    ri.misconfig_name, 
-    ri.severity
-FROM aws_config ac
-LEFT JOIN result_item ri ON ac.config_id = ri.config_id
-WHERE ac.scan_id = (SELECT MAX(scan_id) FROM scan);
+-- 1. Support for RULE-S3-03 (CNAS-1: S3 Versioning)
+ALTER TABLE s3_config 
+ADD COLUMN versioning_enabled BOOLEAN DEFAULT 0;
+
+-- 2. Support for RULE-IAM-04 (CNAS-3: Key Rotation)
+ALTER TABLE iam_config 
+ADD COLUMN key_age_days INTEGER DEFAULT 0;
+
+-- 3. Support for RULE-EC2-02 (CNAS-1: IMDSv2 Enforcement)
+ALTER TABLE ec2_config 
+ADD COLUMN imds_version VARCHAR(10) DEFAULT 'v1';
+
+-- 4. Support for RULE-SG-04 (CNAS-6: Unrestricted Outbound)
+ALTER TABLE ec2_config 
+ADD COLUMN open_egress_rules TEXT NULL;
+
+-- 5. Verify the updates (Optional)
+-- This ensures the columns exist before you run your next scan.
+SELECT * FROM s3_config LIMIT 1;
+SELECT * FROM iam_config LIMIT 1;
+SELECT * FROM ec2_config LIMIT 1;
+
+DESCRIBE iam_config
+
+ALTER TABLE session
+ADD COLUMN token VARCHAR(500) NULL UNIQUE,
+ADD COLUMN token_expiry DATETIME NULL,
+ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1;

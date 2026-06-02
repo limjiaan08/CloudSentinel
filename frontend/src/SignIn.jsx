@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import logoImg from './assets/cloudsentinel_logo.png'; 
 import { Mail, AlertCircle, CheckCircle2, X, Eye, EyeOff } from 'lucide-react'; // Added Eye icons
+import { apiUrl } from './config/apiConfig';
 
 /* --- FORGOT PASSWORD MODAL COMPONENT --- */
 const ForgotPasswordModal = ({ isOpen, onClose }) => {
@@ -121,7 +122,7 @@ function SignIn({ onLoginSuccess }) {
     setMessage({ text: '', isError: false });
 
     try {
-      const response = await fetch('http://localhost:5000/auth/login', {
+      const response = await fetch(`${apiUrl}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),

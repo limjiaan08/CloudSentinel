@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import logoImg from './assets/cloudsentinel_logo.png';
-import { Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, Circle, CheckCircle2 } from 'lucide-react';
+import { apiUrl } from './config/apiConfig';
 
 const ResetPassword = () => {
     const { token } = useParams();
@@ -18,10 +19,13 @@ const ResetPassword = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+    // Validation logic
+    const isPasswordValid = password.length >= 8;
+
     useEffect(() => {
         const checkToken = async () => {
             try {
-                const response = await fetch(`http://localhost:5000/auth/verify-reset-token/${token}`);
+                const response = await fetch(`${apiUrl}/auth/verify-reset-token/${token}`);
                 const data = await response.json();
                 
                 if (response.ok && data.valid) {
@@ -41,6 +45,12 @@ const ResetPassword = () => {
 
     const handleReset = async (e) => {
         e.preventDefault();
+        
+        // Frontend validation before submitting
+        if (!isPasswordValid) {
+            return setMessage({ text: "Password must be at least 8 characters long", isError: true });
+        }
+
         if (password !== confirmPassword) {
             return setMessage({ text: "Passwords do not match.", isError: true });
         }
@@ -49,7 +59,7 @@ const ResetPassword = () => {
         setMessage({ text: '', isError: false });
 
         try {
-            const response = await fetch(`http://localhost:5000/auth/reset-password/${token}`, {
+            const response = await fetch(`${apiUrl}/auth/reset-password/${token}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ password })
@@ -123,6 +133,22 @@ const ResetPassword = () => {
                                             {showPassword ? <EyeOff size={22} /> : <Eye size={22} />}
                                         </button>
                                     </div>
+                                    
+                                    {/* Dynamic Password Validation Badge */}
+                                    <div className="flex items-center gap-1.5 pt-1 pl-1">
+                                        {password.length === 0 ? (
+                                            <Circle size={14} className="text-slate-300" />
+                                        ) : isPasswordValid ? (
+                                            <CheckCircle2 size={14} className="text-emerald-500 fill-emerald-50" />
+                                        ) : (
+                                            <Circle size={14} className="text-amber-500" />
+                                        )}
+                                        <span className={`text-xs font-semibold tracking-wide transition-colors duration-300 ${
+                                            password.length === 0 ? 'text-slate-400' : isPasswordValid ? 'text-emerald-600' : 'text-amber-500'
+                                        }`}>
+                                            Minimum 8 characters required
+                                        </span>
+                                    </div>
                                 </div>
 
                                 <div className="space-y-1">
@@ -142,7 +168,10 @@ const ResetPassword = () => {
                                     </div>
                                 </div>
 
-                                <button type="submit" disabled={loading} className="w-full bg-[#FF9900] hover:bg-[#D17D00] text-white font-bold py-4 rounded-2xl shadow-lg mt-2 mb-4 disabled:opacity-50">
+                                <button 
+                                    type="submit" 
+                                    disabled={loading || !isPasswordValid || password !== confirmPassword} 
+                                    className="w-full bg-[#FF9900] hover:bg-[#D17D00] text-white font-bold py-4 rounded-2xl shadow-lg mt-2 mb-4 disabled:opacity-50 disabled:cursor-not-allowed">
                                     {loading ? "Updating..." : "Update Password"}
                                 </button>
                             </form>

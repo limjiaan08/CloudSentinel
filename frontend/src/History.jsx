@@ -4,6 +4,7 @@ import {
     Activity, Clock, ExternalLink, ChevronDown, Filter as FilterIcon, Search, Loader2, 
     HistoryIcon
 } from 'lucide-react';
+import { apiUrl } from './config/apiConfig';
 
 const History = ({ user }) => {
     const navigate = useNavigate();
@@ -17,7 +18,7 @@ const History = ({ user }) => {
 
     const fetchHistory = async () => {
         try {
-            const response = await fetch(`http://localhost:5000/api/scan-history/${user?.user_id || user?.id}`);
+            const response = await fetch(`${apiUrl}/api/scan-history/${user?.user_id || user?.id}`);
             const data = await response.json();
             if (response.ok) {
                 setScans(data.scans);

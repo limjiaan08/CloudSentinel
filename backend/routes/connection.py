@@ -16,14 +16,25 @@ def verify_aws_connection():
     # Endpoint: Validates AWS credentials via STS and initializes a new scan record
     data = request.get_json()
     
-    access_key = data.get('accessKey')
-    secret_key = data.get('secretKey')
-    region = data.get('region')
-    user_id = data.get('userId')
+    if not data:
+        return jsonify({"error": "Request body is required"}), 400
+    
+    access_key = data.get('accessKey', '').strip() if data.get('accessKey') else ''
+    secret_key = data.get('secretKey', '').strip() if data.get('secretKey') else ''
+    region = data.get('region', '').strip() if data.get('region') else ''
+    user_id = data.get('userId', '').strip() if data.get('userId') else ''
 
     # Ensure all necessary connection parameters are present
     if not all([access_key, secret_key, region, user_id]):
         return jsonify({"error": "All fields including User ID are required"}), 400
+    
+    # Validate AWS access key format (should be ~20 chars, alphanumeric)
+    if len(access_key) < 10 or len(access_key) > 128:
+        return jsonify({"error": "Invalid AWS Access Key format"}), 400
+    
+    # Validate AWS secret key length
+    if len(secret_key) < 10 or len(secret_key) > 200:
+        return jsonify({"error": "Invalid AWS Secret Key format"}), 400
 
     try:
         # Boto3 session (entry point for all AWS SDK actions later)
