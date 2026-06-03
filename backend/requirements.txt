@@ -10,7 +10,7 @@ mysql-connector-python==8.1.0
 
 # Authentication & Security
 Flask-Bcrypt==1.0.1
-PyJWT==2.8.1
+PyJWT==2.8.0
 itsdangerous==2.1.2
 
 # AWS Integration
