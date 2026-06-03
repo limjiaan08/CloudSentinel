@@ -34,7 +34,7 @@ def run_analysis(scan_id, target_model="Vuln"):
 
     def add_finding(config_id, rule_id, resource_name):
         # Helper function: Records a security finding when a rule violation is detected
-        rule = db.session.get(PredefinedRule, rule_id)
+        rule = db.session.query(PredefinedRule).filter_by(rule_id=rule_id).first()
         if not rule:
             print(f"      [!] ERROR: Rule {rule_id} not found!")
             return
