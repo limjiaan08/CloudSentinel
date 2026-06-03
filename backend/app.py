@@ -38,37 +38,35 @@ CORS(app, resources={r"/*": {
 }})
 
 # --- DATABASE ROUTING CONFIGURATION (LOCAL MYSQL VS AIVEN CLOUD) ---
-DATABASE_URL = os.environ.get('DATABASE_URL')
+DATABASE_URL = os.getenv('DATABASE_URL')
 
-if os.environ.get('RENDER') and DATABASE_URL:
-    # 1. Standardize protocol prefix to use the cloud-ready pymysql driver
+if DATABASE_URL:
     if DATABASE_URL.startswith("mysql://"):
         DATABASE_URL = DATABASE_URL.replace("mysql://", "mysql+pymysql://", 1)
-    
-    # 2. Clean out any raw query strings from the dashboard variable to prevent driver crashes
+
     if "?" in DATABASE_URL:
         DATABASE_URL = DATABASE_URL.split("?")[0]
-    
+
     app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
-    
-    # 3. Pass SSL settings cleanly as structured connection arguments instead of raw string text
+
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
         "connect_args": {
-            "ssl": {
-                "ssl_mode": "REQUIRED"
-            }
+            "ssl": {"ssl_mode": "REQUIRED"}
         }
     }
-    print("Cloud Mode: Connected to Free Aiven MySQL Cloud Database Tier via secure arguments.")
+
+    print("Cloud Mode: Using DATABASE_URL")
 else:
-    # Local Development: Fall back to your laptop's original local MySQL server
     db_user = os.getenv('DB_USER', 'root')
     db_password = os.getenv('DB_PASSWORD', '')
     db_host = os.getenv('DB_HOST', 'localhost')
     db_name = os.getenv('DB_NAME', 'cloudsentinel_db')
-    app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+mysqlconnector://{db_user}:{db_password}@{db_host}/{db_name}"
-    print("Local Mode: Connected to local MySQL server...")
 
+    app.config['SQLALCHEMY_DATABASE_URI'] = (
+        f"mysql+mysqlconnector://{db_user}:{db_password}@{db_host}/{db_name}"
+    )
+
+    print("Local Mode: Using local MySQL")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
