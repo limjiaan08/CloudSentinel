@@ -1,241 +1,180 @@
 import json
+import math
 from datetime import datetime
 import pytz
-from sqlalchemy.exc import SQLAlchemyError
-from models import (
-    db, Result, ResultItem, PredefinedRule,
-    AWSConfig, S3Config, EBSConfig, IAMConfig,
-    VPCConfig, EC2Config, Scan
-)
+from models import db, Result, ResultItem, PredefinedRule, AWSConfig, S3Config, EBSConfig, IAMConfig, VPCConfig, EC2Config, Scan
 
 def get_my_time():
+    # Returns naive datetime in Malaysia timezone for database compatibility
     kl_tz = pytz.timezone('Asia/Kuala_Lumpur')
     return datetime.now(kl_tz).replace(tzinfo=None)
 
-
 def run_analysis(scan_id, target_model="Vuln"):
-
-    # -------------------------------
-    # SAFE START (no session poisoning)
-    # -------------------------------
-    try:
-        scan_record = db.session.get(Scan, scan_id)
-    except SQLAlchemyError:
-        db.session.rollback()
-        scan_record = db.session.get(Scan, scan_id)
-
+    # Main analysis engine: Runs security rules against fetched AWS resources and generates findings
+    # --- 1. FETCH ACTUAL START TIME ---
+    scan_record = db.session.get(Scan, scan_id)
     actual_start_time = scan_record.start_time if scan_record else get_my_time()
 
     def is_cancelled():
-        try:
-            s = db.session.get(Scan, scan_id)
-            return s and s.scan_status == 'CANCELLED'
-        except SQLAlchemyError:
-            db.session.rollback()
-            return False
+        # Helper function: Checks if scan has been cancelled by user and stops processing
+        db.session.expire_all()
+        s = db.session.get(Scan, scan_id)
+        return s and s.scan_status == 'CANCELLED'
+    
+    print(f"\n{'*'*60}")
+    print(f"🔍 STARTING SECURITY ANALYSIS: {target_model} MODEL")
+    print(f"⏰ PROCESS START TIME: {actual_start_time}")
+    print(f"{'*'*60}")
+    
+    # Create the Result Header
+    analysis_start = get_my_time()
+    new_result = Result(scan_id=scan_id, detected_at=analysis_start)
+    db.session.add(new_result)
+    db.session.flush() 
 
-    print("\n" + "*" * 60)
-    print(f"🔍 STARTING SECURITY ANALYSIS: {target_model}")
-    print(f"⏰ START TIME: {actual_start_time}")
-    print("*" * 60)
-
-    # -------------------------------
-    # PRELOAD RULES (IMPORTANT FIX)
-    # -------------------------------
-    rules = {
-        r.rule_id: r for r in db.session.query(PredefinedRule).all()
-    }
-
-    # -------------------------------
-    # CREATE RESULT HEADER
-    # -------------------------------
-    new_result = Result(
-        scan_id=scan_id,
-        detected_at=get_my_time()
-    )
-
-    try:
-        db.session.add(new_result)
-        db.session.flush()
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        print(f"❌ Failed to create result header: {e}")
-        return get_my_time(), 0.0
-
-    # -------------------------------
-    # SAFE FINDING FUNCTION
-    # -------------------------------
     def add_finding(config_id, rule_id, resource_name):
-
-        rule = rules.get(rule_id)
-
+        # Helper function: Records a security finding when a rule violation is detected
+        rule = db.session.get(PredefinedRule, rule_id)
         if not rule:
-            print(f"      [!] RULE MISSING IN CACHE: {rule_id}")
+            print(f"      [!] ERROR: Rule {rule_id} not found!")
             return
 
-        print(f"      [!] ALERT: {rule.rule_name} on {resource_name}")
+        print(f"      [!] ALERT: {rule.rule_name} detected on {resource_name}")
+        
+        item = ResultItem(
+            result_id=new_result.result_id,
+            config_id=config_id,
+            rule_id=rule.rule_id,
+            cnas_category=rule.cnas_category,
+            misconfig_name=rule.rule_name,
+            aws_service=rule.aws_service,
+            severity=rule.severity,
+            description=rule.description,
+            detected_at=get_my_time()
+        )
+        db.session.add(item)
 
-        try:
-            item = ResultItem(
-                result_id=new_result.result_id,
-                config_id=config_id,
-                rule_id=rule.rule_id,
-                cnas_category=rule.cnas_category,
-                misconfig_name=rule.rule_name,
-                aws_service=rule.aws_service,
-                severity=rule.severity,
-                description=rule.description,
-                detected_at=get_my_time()
-            )
-            db.session.add(item)
+    # --- 2. S3 Analysis ---
+    print("\n📝 [1/4] Analyzing S3 Storage Security...")
+    s3_data = db.session.query(AWSConfig, S3Config).join(S3Config).filter(AWSConfig.scan_id == scan_id).all()
+    for header, detail in s3_data:
+        if is_cancelled(): return get_my_time(), 0.0
+        
+        if detail.is_public:
+            add_finding(header.config_id, "RULE-S3-01", header.resource_name)
+        if not detail.encryption_enabled:
+            add_finding(header.config_id, "RULE-S3-02", header.resource_name)
+        # NEW: RULE-S3-03 (Versioning Disabled)
+        if hasattr(detail, 'versioning_enabled') and not detail.versioning_enabled:
+            add_finding(header.config_id, "RULE-S3-03", header.resource_name)
 
-        except Exception as e:
-            print(f"      [!] Failed to insert result item: {e}")
+    # --- 3. EBS Analysis ---
+    print("\n📝 [2/4] Analyzing EBS Volume Encryption...")
+    ebs_data = db.session.query(AWSConfig, EBSConfig).join(EBSConfig).filter(AWSConfig.scan_id == scan_id).all()
+    for header, detail in ebs_data:
+        if is_cancelled(): return get_my_time(), 0.0
+        if not detail.encryption_enabled:
+            add_finding(header.config_id, "RULE-EBS-01", header.resource_name)
 
-    # -------------------------------
-    # 1. S3 ANALYSIS
-    # -------------------------------
-    print("\n📝 [1/4] S3 Analysis...")
-
-    try:
-        s3_data = db.session.query(AWSConfig, S3Config)\
-            .join(S3Config, AWSConfig.config_id == S3Config.config_id)\
-            .filter(AWSConfig.scan_id == scan_id).all()
-
-        for header, detail in s3_data:
-            if is_cancelled():
-                return get_my_time(), 0.0
-
-            if detail.is_public:
-                add_finding(header.config_id, "RULE-S3-01", header.resource_name)
-
-            if not detail.encryption_enabled:
-                add_finding(header.config_id, "RULE-S3-02", header.resource_name)
-
-            if hasattr(detail, 'versioning_enabled') and not detail.versioning_enabled:
-                add_finding(header.config_id, "RULE-S3-03", header.resource_name)
-
-    except SQLAlchemyError as e:
-        print(f"❌ S3 error: {e}")
-        db.session.rollback()
-
-    # -------------------------------
-    # 2. EBS ANALYSIS
-    # -------------------------------
-    print("\n📝 [2/4] EBS Analysis...")
-
-    try:
-        ebs_data = db.session.query(AWSConfig, EBSConfig)\
-            .join(EBSConfig, AWSConfig.config_id == EBSConfig.config_id)\
-            .filter(AWSConfig.scan_id == scan_id).all()
-
-        for header, detail in ebs_data:
-            if is_cancelled():
-                return get_my_time(), 0.0
-
-            if not detail.encryption_enabled:
-                add_finding(header.config_id, "RULE-EBS-01", header.resource_name)
-
-    except SQLAlchemyError as e:
-        print(f"❌ EBS error: {e}")
-        db.session.rollback()
-
-    # -------------------------------
-    # 3. IAM ANALYSIS
-    # -------------------------------
-    print("\n📝 [3/4] IAM Analysis...")
-
-    try:
-        iam_data = db.session.query(AWSConfig, IAMConfig)\
-            .join(IAMConfig, AWSConfig.config_id == IAMConfig.config_id)\
-            .filter(AWSConfig.scan_id == scan_id).all()
-
-        for header, detail in iam_data:
-            if is_cancelled():
-                return get_my_time(), 0.0
-
-            if header.resource_type == 'IAM_USER':
+    # --- 4. IAM Analysis (MFA Fix) ---
+    print("\n📝 [3/4] Analyzing IAM Roles & Identity...")
+    iam_data = db.session.query(AWSConfig, IAMConfig).join(IAMConfig).filter(AWSConfig.scan_id == scan_id).all()
+    
+    for header, detail in iam_data:
+        if is_cancelled(): return get_my_time(), 0.0
+        
+        # A. Check IAM Users 
+        if header.resource_type == 'IAM_USER':
+            # Use a broad falsy check to catch False, 0, or NULL
+            if not detail.mfa_enabled:
+                add_finding(header.config_id, "RULE-IAM-02", f"IAM User ({header.resource_name})")
+            
+            # RULE-IAM-04: Stale Access Keys
+            if hasattr(detail, 'key_age_days') and detail.key_age_days > 7:
+                add_finding(header.config_id, "RULE-IAM-04", f"Stale Access Keys ({header.resource_name})")
+                
+        # B. Check IAM Roles 
+        elif header.resource_type == 'IAM_ROLE':
+            perms = json.loads(detail.permissions) if detail.permissions else []
+            if 'AdministratorAccess' in perms:
+                add_finding(header.config_id, "RULE-IAM-01", header.resource_name)
+                
+        # C. Check IAM Global 
+        elif header.resource_type == 'IAM_GLOBAL':
+            if target_model != "Secure":
+                # If Root MFA is ENABLED (True), 'not True' is False, so this is skipped.
+                # If Root MFA were DISABLED (False), this would trigger.
                 if not detail.mfa_enabled:
-                    add_finding(header.config_id, "RULE-IAM-02",
-                                f"IAM User ({header.resource_name})")
+                    add_finding(header.config_id, "RULE-IAM-02", "Account Root")
+                
+                if detail.password_policy_strength == "Weak":
+                    add_finding(header.config_id, "RULE-IAM-03", "Account Password Policy")
 
-                if hasattr(detail, 'key_age_days') and detail.key_age_days > 7:
-                    add_finding(header.config_id, "RULE-IAM-04",
-                                f"Stale Keys ({header.resource_name})")
+    # --- 5. VPC & SG Analysis ---
+    print("\n📝 [4/4] Analyzing Network Perimeter (VPC & SG)...")
 
-            elif header.resource_type == 'IAM_ROLE':
-                perms = json.loads(detail.permissions or "[]")
-                if 'AdministratorAccess' in perms:
-                    add_finding(header.config_id, "RULE-IAM-01",
-                                header.resource_name)
+    # --- 5a. VPC Analysis ---
+    vpc_data = db.session.query(AWSConfig, VPCConfig).join(VPCConfig).filter(AWSConfig.scan_id == scan_id).all()
+    for header, detail in vpc_data:
+        if is_cancelled(): return get_my_time(), 0.0
+        
+        # RULE-VPC-02: Missing visibility
+        if not detail.flow_logs_enabled:
+            add_finding(header.config_id, "RULE-VPC-02", header.resource_name)
+        
+        # RULE-VPC-01: Poor segmentation (detecting the string we injected in the fetcher)
+        if "Subnets: 1" in header.resource_name:
+            add_finding(header.config_id, "RULE-VPC-01", header.resource_name)
 
-    except SQLAlchemyError as e:
-        print(f"❌ IAM error: {e}")
-        db.session.rollback()
+    # --- 5b. SG & EC2 Analysis ---
+    sg_data = db.session.query(AWSConfig, EC2Config).join(EC2Config).filter(AWSConfig.scan_id == scan_id).all()
+    for header, detail in sg_data:
+        if is_cancelled(): return get_my_time(), 0.0
+        
+        # Security Group Specific Rules (CNAS-6)
+        if header.resource_type == 'EC2_SG':
+            # --- Check Ingress (Existing) ---
+            in_rules = json.loads(detail.open_ingress_rules) if detail.open_ingress_rules else []
+            if any(r in ["Port:ALL", "Port:22"] for r in in_rules):
+                add_finding(header.config_id, "RULE-SG-01", header.resource_name)
+                
+            # --- NEW: Check Egress for RULE-SG-04 (CNAS-6) ---
+            out_rules = json.loads(detail.open_egress_rules) if detail.open_egress_rules else []
+            # If 'Port:ALL' exists in the egress list, it means 0.0.0.0/0 is open for all traffic
+            if "Port:ALL" in out_rules:
+                add_finding(header.config_id, "RULE-SG-04", header.resource_name)
+        
+        # Instance Specific Rules (CNAS-1)
+        if header.resource_type == 'EC2_INSTANCE':
+            if hasattr(detail, 'imds_version') and detail.imds_version == 'v1':
+                add_finding(header.config_id, "RULE-EC2-02", header.resource_name)
 
-    # -------------------------------
-    # 4. NETWORK ANALYSIS
-    # -------------------------------
-    print("\n📝 [4/4] Network Analysis...")
-
-    try:
-        all_configs = db.session.query(AWSConfig)\
-            .filter(AWSConfig.scan_id == scan_id).all()
-
-        for header in all_configs:
-            if is_cancelled():
-                return get_my_time(), 0.0
-
-            if header.resource_type == 'EC2_SG':
-                detail = db.session.query(EC2Config)\
-                    .filter_by(config_id=header.config_id).first()
-
-                if detail:
-                    in_rules = json.loads(detail.open_ingress_rules or "[]")
-                    if any(r in ["Port:ALL", "Port:22"] for r in in_rules):
-                        add_finding(header.config_id, "RULE-SG-01",
-                                    header.resource_name)
-
-                    out_rules = json.loads(detail.open_egress_rules or "[]")
-                    if "Port:ALL" in out_rules:
-                        add_finding(header.config_id, "RULE-SG-04",
-                                    header.resource_name)
-
-            elif header.resource_type == 'EC2_INSTANCE':
-                detail = db.session.query(EC2Config)\
-                    .filter_by(config_id=header.config_id).first()
-
-                if detail and getattr(detail, 'imds_version', None) == 'v1':
-                    add_finding(header.config_id, "RULE-EC2-02",
-                                header.resource_name)
-
-    except SQLAlchemyError as e:
-        print(f"❌ Network error: {e}")
-        db.session.rollback()
-
-    # -------------------------------
-    # FINAL COMMIT
-    # -------------------------------
-    try:
-        end_time = get_my_time()
-        duration = (end_time - actual_start_time).total_seconds()
-
-        new_result.completed_at = end_time
-        new_result.duration = f"{duration:.2f}s"
-
-        db.session.commit()
-
-        print("\n" + "=" * 60)
-        print("✅ ANALYSIS COMPLETE")
-        print(f"⏱️ Duration: {duration:.2f}s")
-        print("=" * 60)
-
-        return end_time, duration
-
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        print(f"❌ Final commit failed: {e}")
+    # --- 🛑 FINAL KILL SWITCH & COMMIT GUARD ---
+    db.session.expire_all()
+    check_scan = db.session.get(Scan, scan_id)
+    
+    if not check_scan or check_scan.scan_status == 'CANCELLED':
+        db.session.rollback() # Abort saving any findings
+        print(f"🛑 Analysis for {scan_id} aborted: Scan was CANCELLED by user.")
         return get_my_time(), 0.0
 
-    finally:
-        db.session.remove()
+    # --- 6. CAPTURE END TIME & CALCULATE DURATION ---
+    end_dt = get_my_time()
+    duration_delta = end_dt - actual_start_time
+    total_seconds = duration_delta.total_seconds()
+    
+    # Clean string for UI display
+    duration_str = f"{total_seconds:.2f}s" if total_seconds < 60 else f"{int(total_seconds // 60)}m {total_seconds % 60:.2f}s"
+
+    new_result.completed_at = end_dt
+    new_result.duration = duration_str
+
+    # Final commit only if we reached this point and are NOT cancelled
+    db.session.commit()
+    
+    print(f"\n{'='*60}")
+    print(f"✅ ANALYSIS COMPLETE.")
+    print(f"⏱️  TOTAL DURATION: {duration_str}")
+    print(f"{'='*60}\n")
+
+    return end_dt, round(total_seconds, 2)
