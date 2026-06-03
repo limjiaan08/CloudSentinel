@@ -260,28 +260,48 @@ def forgot_password():
 
     user = User.query.filter_by(user_email=email).first()
 
-    # Prevent email enumeration 
-    if user:
-        try:
-            serializer = get_serializer()
-            # Token is signed with a secret key and specific 'salt'
-            token = serializer.dumps(email, salt='password-reset-salt')
-            
-            # React Frontend Link
-            reset_link = f"http://localhost:5173/reset-password/{token}"
-
-            msg = Message(
-                subject="CloudSentinel - Password Reset Request",
-                recipients=[email],
-                body=f"Hi {user.user_name},\n\nClick the link below to reset your password:\n{reset_link}\n\nThis link expires in 30 minutes."
-            )
-            mail.send(msg)
-        except Exception as e:
-            current_app.logger.error(f"Mail error: {e}")
-
-    return jsonify({
+    # Always return same message (prevents email enumeration)
+    response_message = {
         "message": "If an account matches that email, a reset link has been sent."
-    }), 200
+    }
+
+    if not user:
+        return jsonify(response_message), 200
+
+    try:
+        print("🔹 Forgot password triggered for:", email)
+
+        serializer = get_serializer()
+        token = serializer.dumps(email, salt='password-reset-salt')
+
+        reset_link = f"http://localhost:5173/reset-password/{token}"
+
+        print("🔹 Reset link generated")
+
+        msg = Message(
+            subject="CloudSentinel - Password Reset Request",
+            sender=current_app.config['MAIL_DEFAULT_SENDER'],
+            recipients=[email],
+            body=f"Hi {user.user_name},\n\n"
+                 f"Click the link below to reset your password:\n"
+                 f"{reset_link}\n\n"
+                 f"This link expires in 30 minutes."
+        )
+
+        print("🔹 Sending email...")
+
+        mail.send(msg)
+
+        print("✅ Email sent successfully")
+
+    except Exception as e:
+        print("❌ MAIL ERROR:", str(e))
+        return jsonify({
+            "error": "Email sending failed",
+            "details": str(e)
+        }), 500
+
+    return jsonify(response_message), 200
 
 # --- VERIFY PASSWORD RESET EMAIL TOKEN (GET) ---
 @auth_bp.route('/verify-reset-token/<token>', methods=['GET'])
