@@ -10,6 +10,7 @@ from flask_mail import Message, Mail
 import os
 import jwt
 import smtplib
+from threading import Thread
 
 # Define the blueprint (mini-app for authentication)
 auth_bp = Blueprint('auth', __name__)
@@ -50,6 +51,14 @@ def normalize(dt):
 def get_serializer():
     #Helper function to get the serializer with the correct app SECRET_KEY
     return URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
+
+def send_email(app, msg):
+    with app.app_context():
+        try:
+            mail.send(msg)
+            print("✅ Email sent")
+        except Exception as e:
+            print("❌ Email failed:", e)
 
 def generate_jwt_token(user_id, session_id, expiration_hours=24):
     """
@@ -262,34 +271,25 @@ def forgot_password():
     user = User.query.filter_by(user_email=email).first()
 
     if user:
-        try:
-            serializer = get_serializer()
-            token = serializer.dumps(email, salt='password-reset-salt')
+        serializer = get_serializer()
+        token = serializer.dumps(email, salt='password-reset-salt')
 
-            reset_link = f"{os.getenv('FRONTEND_URL')}/reset-password/{token}"
+        reset_link = f"{os.getenv('FRONTEND_URL')}/reset-password/{token}"
 
-            msg = Message(
-                subject="CloudSentinel - Password Reset Request",
-                recipients=[email],
-                body=f"""Hi {user.user_name},
+        msg = Message(
+            subject="CloudSentinel - Password Reset Request",
+            recipients=[email],
+            body=f"""Hi {user.user_name},
 
-                Click below to reset password:
-                {reset_link}
+Click below to reset password:
+{reset_link}
 
-                This link expires in 30 minutes.
-                """
-            )
+This link expires in 30 minutes.
+"""
+        )
 
-            # 🔥 important: prevent hanging
-            with current_app.app_context():
-                mail.send(msg)
-
-            print("✅ Email sent")
-
-        except smtplib.SMTPException as e:
-            current_app.logger.error(f"SMTP error: {e}")
-        except Exception as e:
-            current_app.logger.error(f"Mail error: {e}")
+        # 🔥 NON-BLOCKING EMAIL (IMPORTANT FIX)
+        Thread(target=send_email, args=(current_app._get_current_object(), msg)).start()
 
     return jsonify({
         "message": "If an account matches that email, a reset link has been sent."
