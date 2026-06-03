@@ -9,6 +9,7 @@ from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 from flask_mail import Message, Mail
 import os
 import jwt
+import smtplib
 
 # Define the blueprint (mini-app for authentication)
 auth_bp = Blueprint('auth', __name__)
@@ -260,48 +261,39 @@ def forgot_password():
 
     user = User.query.filter_by(user_email=email).first()
 
-    # Always return same message (prevents email enumeration)
-    response_message = {
+    if user:
+        try:
+            serializer = get_serializer()
+            token = serializer.dumps(email, salt='password-reset-salt')
+
+            reset_link = f"{os.getenv('FRONTEND_URL')}/reset-password/{token}"
+
+            msg = Message(
+                subject="CloudSentinel - Password Reset Request",
+                recipients=[email],
+                body=f"""Hi {user.user_name},
+
+                Click below to reset password:
+                {reset_link}
+
+                This link expires in 30 minutes.
+                """
+            )
+
+            # 🔥 important: prevent hanging
+            with current_app.app_context():
+                mail.send(msg)
+
+            print("✅ Email sent")
+
+        except smtplib.SMTPException as e:
+            current_app.logger.error(f"SMTP error: {e}")
+        except Exception as e:
+            current_app.logger.error(f"Mail error: {e}")
+
+    return jsonify({
         "message": "If an account matches that email, a reset link has been sent."
-    }
-
-    if not user:
-        return jsonify(response_message), 200
-
-    try:
-        print("🔹 Forgot password triggered for:", email)
-
-        serializer = get_serializer()
-        token = serializer.dumps(email, salt='password-reset-salt')
-
-        reset_link = f"http://localhost:5173/reset-password/{token}"
-
-        print("🔹 Reset link generated")
-
-        msg = Message(
-            subject="CloudSentinel - Password Reset Request",
-            sender=current_app.config['MAIL_DEFAULT_SENDER'],
-            recipients=[email],
-            body=f"Hi {user.user_name},\n\n"
-                 f"Click the link below to reset your password:\n"
-                 f"{reset_link}\n\n"
-                 f"This link expires in 30 minutes."
-        )
-
-        print("🔹 Sending email...")
-
-        mail.send(msg)
-
-        print("✅ Email sent successfully")
-
-    except Exception as e:
-        print("❌ MAIL ERROR:", str(e))
-        return jsonify({
-            "error": "Email sending failed",
-            "details": str(e)
-        }), 500
-
-    return jsonify(response_message), 200
+    }), 200
 
 # --- VERIFY PASSWORD RESET EMAIL TOKEN (GET) ---
 @auth_bp.route('/verify-reset-token/<token>', methods=['GET'])
