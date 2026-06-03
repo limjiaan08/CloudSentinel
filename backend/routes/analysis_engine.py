@@ -231,4 +231,5 @@ def run_analysis(scan_id, target_model="Vuln"):
         db.session.rollback()
         return get_my_time(), 0.0
     finally:
+        
         db.session.remove()
