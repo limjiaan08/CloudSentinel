@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, current_app
 from models import db
 from models.auth import User, Session
 from flask_bcrypt import Bcrypt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 import pytz
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
@@ -19,9 +19,8 @@ bcrypt = Bcrypt()
 # Mail tool: Manages SMTP connections for sending system emails
 mail = Mail()
 
-def get_my_time():
-    # Returns current time in Malaysia timezone for consistent database timestamps
-    return datetime.now(pytz.timezone('Asia/Kuala_Lumpur'))
+def get_utc_time():
+    return datetime.now(timezone.utc)
 
 def make_aware(dt):
     # Converts naive datetime from database to timezone-aware datetime in Malaysia timezone
@@ -115,7 +114,7 @@ def signup():
         user_name = name,
         user_email = email,
         user_password = hashed_password,
-        created_at = get_my_time()
+        created_at = get_utc_time()
     )
 
     try:
@@ -146,7 +145,7 @@ def login():
         # Create a new session
         new_session = Session(
             user_id = user.user_id,
-            start_time = get_my_time()
+            start_time = get_utc_time()
         )
 
         try:
@@ -155,7 +154,7 @@ def login():
             
             # Generate JWT token with 24-hour expiration
             token = generate_jwt_token(user.user_id, new_session.session_id, expiration_hours=24)
-            token_expiry = get_my_time() + timedelta(hours=24)
+            token_expiry = get_utc_time() + timedelta(hours=24)
             
             # Store token and expiry in session
             new_session.token = token
@@ -187,41 +186,54 @@ def logout():
 
     if not token and not session_id:
         return jsonify({"error": "Token or Session ID is required"}), 400
-    
-    # Find session by token or session_id
+
     session = None
     if token:
         session = Session.query.filter_by(token=token).first()
     elif session_id:
         session = Session.query.filter_by(session_id=session_id).first()
-    
-    if session:
-        end_time = get_my_time()
+
+    if not session:
+        return jsonify({"error": "Session not found"}), 404
+
+    try:
+        # ✅ ALWAYS use UTC
+        end_time = get_utc_time()
+
+        start_time = session.start_time
+
+        # ✅ FIX: normalize DB datetime (important)
+        if start_time.tzinfo is None:
+            start_time = start_time.replace(tzinfo=timezone.utc)
+
+        if end_time.tzinfo is None:
+            end_time = end_time.replace(tzinfo=timezone.utc)
+
+        # ✅ SAFE calculation
+        duration_seconds = int((end_time - start_time).total_seconds())
+
         session.end_time = end_time
-        session.is_active = 0  # Revoke the token
+        session.duration = duration_seconds
+        session.is_active = 0
 
         print("LOGOUT SESSION ID:", session.session_id)
-        print("START:", session.start_time)
-        print("END:", get_my_time())
-        print("TOKEN:", session.token)
-        
-        try:
-            start_ts = session.start_time.timestamp()
-            end_ts = end_time.timestamp()
-            session.duration = int(end_ts - start_ts)
-        
-            db.session.commit()
-            return jsonify({
-                "message": "Logged out successfully",
-                "stayed for": f"{session.duration} seconds" 
-            }), 200
-        
-        except Exception as e:
-            db.session.rollback()
-            print(f"Error calculating duration: {e}")
-            return jsonify({"error": "Duration calculation failed", "details": str(e)})
-    else:
-        return jsonify({"error": "Session not found"}), 404
+        print("START:", start_time)
+        print("END:", end_time)
+        print("DURATION:", duration_seconds)
+
+        db.session.commit()
+
+        return jsonify({
+            "message": "Logged out successfully",
+            "stayed_for_seconds": duration_seconds
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "error": "Duration calculation failed",
+            "details": str(e)
+        }), 500
 
 # --- FORGOT PASSWORD ---
 @auth_bp.route('/forgot-password', methods=['POST'])
@@ -362,7 +374,7 @@ def token_required(f):
             }), 401
 
         # Check token expiry time
-        if session.token_expiry and make_aware(session.token_expiry) < get_my_time():
+        if session.token_expiry and make_aware(session.token_expiry) < get_utc_time():
             session.is_active = 0  # Mark session as inactive
             db.session.commit()
             return jsonify({
@@ -413,7 +425,7 @@ def verify_token():
         return jsonify({"valid": False, "message": "Session is not active or token has been revoked"}), 401
     
     # Check if token has expired
-    if session.token_expiry and make_aware(session.token_expiry) < get_my_time():
+    if session.token_expiry and make_aware(session.token_expiry) < get_utc_time():
         # Token has expired, mark session as inactive
         session.is_active = 0
         db.session.commit()
@@ -450,7 +462,7 @@ def auto_logout():
     session = Session.query.filter_by(token=token).first()
     if session:
         session.is_active = 0
-        session.end_time = get_my_time()
+        session.end_time = get_utc_time()
         
         try:
             if session.start_time:
@@ -506,7 +518,7 @@ def get_user_profile(user_id):
         "last_login": last_session.start_time.isoformat() if last_session and last_session.start_time else None,
         "last_session_duration": last_session.duration if last_session else None,
         "token_expiry": current_session.token_expiry.isoformat() if current_session and current_session.token_expiry else None,
-        "is_token_valid": current_session is not None and (not current_session.token_expiry or make_aware(current_session.token_expiry) > get_my_time())
+        "is_token_valid": current_session is not None and (not current_session.token_expiry or make_aware(current_session.token_expiry) > get_utc_time())
     }), 200
 
 # --- UPDATE USER PROFILE ---
@@ -554,7 +566,7 @@ def re_authenticate(user_id):
     current_session = Session.query.filter_by(token=request.token).first()
     if current_session:
         current_session.is_active = 0
-        current_session.end_time = get_my_time()
+        current_session.end_time = get_utc_time()
 
     # Calculate duration for the current session before revoking
         if current_session and current_session.start_time:
@@ -565,7 +577,7 @@ def re_authenticate(user_id):
     # Create new session
     new_session = Session(
         user_id=user_id,
-        start_time=get_my_time()
+        start_time=get_utc_time()
     )
     
     try:
@@ -574,7 +586,7 @@ def re_authenticate(user_id):
         
         # Generate new JWT token
         new_token = generate_jwt_token(user_id, new_session.session_id, expiration_hours=24)
-        new_token_expiry = get_my_time() + timedelta(hours=24)
+        new_token_expiry = get_utc_time() + timedelta(hours=24)
         
         new_session.token = new_token
         new_session.token_expiry = new_token_expiry
@@ -612,7 +624,7 @@ def renew_token(user_id):
     # Create new session
     new_session = Session(
         user_id=user_id,
-        start_time=get_my_time()
+        start_time=get_utc_time()
     )
     
     try:
@@ -621,7 +633,7 @@ def renew_token(user_id):
         
         # Generate new JWT token with 24-hour expiration
         new_token = generate_jwt_token(user_id, new_session.session_id, expiration_hours=24)
-        new_token_expiry = get_my_time() + timedelta(hours=24)
+        new_token_expiry = get_utc_time() + timedelta(hours=24)
         
         new_session.token = new_token
         new_session.token_expiry = new_token_expiry
