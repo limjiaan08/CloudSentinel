@@ -187,36 +187,55 @@ def logout():
 
     if not token and not session_id:
         return jsonify({"error": "Token or Session ID is required"}), 400
-    
-    # Find session by token or session_id
-    session = None
+
+    # Find session
     if token:
-        session = Session.query.filter_by(token=token).first()
-    elif session_id:
-        session = Session.query.filter_by(session_id=session_id).first()
-    
-    if session:
+        session = Session.query.filter_by(token=token, is_active=1).first()
+    else:
+        session = Session.query.filter_by(session_id=session_id, is_active=1).first()
+
+    if not session:
+        return jsonify({"error": "Session not found or already logged out"}), 404
+
+    try:
+        # FORCE fresh data from DB (prevents stale SQLAlchemy object issues)
+        db.session.refresh(session)
+
         end_time = get_my_time()
+
         session.end_time = end_time
-        session.is_active = 0  # Revoke the token
-        
-        try:
+        session.is_active = 0
+
+        # --- SAFE DURATION CALC ---
+        if session.start_time:
             start_ts = session.start_time.timestamp()
             end_ts = end_time.timestamp()
-            session.duration = int(end_ts - start_ts)
-        
-            db.session.commit()
-            return jsonify({
-                "message": "Logged out successfully",
-                "stayed for": f"{session.duration} seconds" 
-            }), 200
-        
-        except Exception as e:
-            db.session.rollback()
-            print(f"Error calculating duration: {e}")
-            return jsonify({"error": "Duration calculation failed", "details": str(e)})
-    else:
-        return jsonify({"error": "Session not found"}), 404
+
+            duration = end_ts - start_ts
+
+            # HARD GUARD: NEVER allow negative
+            if duration < 0:
+                print("⚠️ Negative duration fixed:", duration)
+                duration = abs(duration)
+
+            session.duration = int(duration)
+        else:
+            session.duration = 0
+
+        db.session.commit()
+
+        return jsonify({
+            "message": "Logged out successfully",
+            "stayed for": f"{session.duration} seconds"
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error calculating duration: {e}")
+        return jsonify({
+            "error": "Duration calculation failed",
+            "details": str(e)
+        }), 500
 
 # --- FORGOT PASSWORD ---
 @auth_bp.route('/forgot-password', methods=['POST'])
