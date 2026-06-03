@@ -5,7 +5,7 @@ Flask-SQLAlchemy==3.0.5
 python-dotenv==1.0.0
 
 # Database
-SQLAlchemy==2.1.0
+SQLAlchemy==2.0.50
 mysql-connector-python==8.1.0
 
 # Authentication & Security
