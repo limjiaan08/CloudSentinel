@@ -16,7 +16,7 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
     setStatus({ type: '', msg: '' });
 
     try {
-      const response = await fetch('http://localhost:5000/auth/forgot-password', {
+      const response = await fetch(`${apiUrl}/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
