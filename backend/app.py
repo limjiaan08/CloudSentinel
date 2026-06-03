@@ -37,18 +37,18 @@ CORS(app, resources={r"/*": {
     "allow_headers": ["Content-Type", "Authorization"]
 }})
 
-# --- SMART DATABASE ROUTING CONFIGURATION ---
-if os.environ.get('RENDER'):
-    # Production: Use an embedded cloud SQLite database on Render's disk
-    DB_DIR = '/data'
-    if not os.path.exists(DB_DIR):
-        os.makedirs(DB_DIR)
-        
-    DB_PATH = os.path.join(DB_DIR, 'cloudsentinel.db')
-    app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{DB_PATH}"
-    print("Cloud Mode: Routing database data to embedded SQLite storage...")
+# --- DATABASE ROUTING CONFIGURATION (LOCAL MYSQL VS AIVEN CLOUD) ---
+DATABASE_URL = os.environ.get('DATABASE_URL')
+
+if os.environ.get('RENDER') and DATABASE_URL:
+    # Production: Use the Aiven Cloud MySQL URI string and route via pymysql driver
+    if DATABASE_URL.startswith("mysql://"):
+        DATABASE_URL = DATABASE_URL.replace("mysql://", "mysql+pymysql://", 1)
+    
+    app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
+    print("Cloud Mode: Connected to Free Aiven MySQL Cloud Database Tier.")
 else:
-    # Local Development: Fall back to your laptop's original MySQL server
+    # Local Development: Fall back to your laptop's original local MySQL server
     db_user = os.getenv('DB_USER', 'root')
     db_password = os.getenv('DB_PASSWORD', '')
     db_host = os.getenv('DB_HOST', 'localhost')
@@ -59,11 +59,11 @@ else:
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
-# --- AUTO-CREATE TABLES ON RENDER ---
+# --- AUTO-CREATE TABLES ON THE CLOUD DATABASE ---
 if os.environ.get('RENDER'):
     with app.app_context():
         db.create_all()
-        print("Database structure successfully mapped and initialized on the cloud disk!")
+        print("Database tables initialized successfully on the Aiven cloud cluster!")
 
 # Register Blueprints
 app.register_blueprint(auth_bp, url_prefix='/auth')
