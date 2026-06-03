@@ -15,10 +15,10 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
 app = Flask(__name__)
 
-# --- NEW: SECURITY CONFIG ---
+# --- SECURITY CONFIG ---
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 
-# --- NEW: MAIL CONFIGURATION ---
+# --- MAIL CONFIGURATION ---
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
@@ -37,16 +37,33 @@ CORS(app, resources={r"/*": {
     "allow_headers": ["Content-Type", "Authorization"]
 }})
 
-# Database Configuration
-db_user = os.getenv('DB_USER', 'root')
-db_password = os.getenv('DB_PASSWORD', '')
-db_host = os.getenv('DB_HOST', 'localhost')
-db_name = os.getenv('DB_NAME', 'cloudsentinel_db')
+# --- SMART DATABASE ROUTING CONFIGURATION ---
+if os.environ.get('RENDER'):
+    # Production: Use an embedded cloud SQLite database on Render's disk
+    DB_DIR = '/data'
+    if not os.path.exists(DB_DIR):
+        os.makedirs(DB_DIR)
+        
+    DB_PATH = os.path.join(DB_DIR, 'cloudsentinel.db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{DB_PATH}"
+    print("Cloud Mode: Routing database data to embedded SQLite storage...")
+else:
+    # Local Development: Fall back to your laptop's original MySQL server
+    db_user = os.getenv('DB_USER', 'root')
+    db_password = os.getenv('DB_PASSWORD', '')
+    db_host = os.getenv('DB_HOST', 'localhost')
+    db_name = os.getenv('DB_NAME', 'cloudsentinel_db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+mysqlconnector://{db_user}:{db_password}@{db_host}/{db_name}"
+    print("Local Mode: Connected to local MySQL server...")
 
-app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+mysqlconnector://{db_user}:{db_password}@{db_host}/{db_name}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
 db.init_app(app)
+
+# --- AUTO-CREATE TABLES ON RENDER ---
+if os.environ.get('RENDER'):
+    with app.app_context():
+        db.create_all()
+        print("Database structure successfully mapped and initialized on the cloud disk!")
 
 # Register Blueprints
 app.register_blueprint(auth_bp, url_prefix='/auth')
