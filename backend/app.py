@@ -50,11 +50,12 @@ if DATABASE_URL:
     app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-        "connect_args": {
-            "ssl": {"ssl_mode": "REQUIRED"}
-        }
-    }
-
+    "connect_args": {
+        "ssl": {"ssl_mode": "REQUIRED"}
+    },
+    "pool_pre_ping": True,
+    "pool_recycle": 280
+}
     print("Cloud Mode: Using DATABASE_URL")
 else:
     db_user = os.getenv('DB_USER', 'root')
@@ -70,6 +71,11 @@ else:
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
+with app.app_context():
+    from sqlalchemy import text
+    result = db.session.execute(text("SELECT DATABASE()")).fetchone()
+    print("🔥 ACTIVE DATABASE:", result)
+    
 # --- AUTO-CREATE TABLES ON THE CLOUD DATABASE ---
 if os.environ.get('RENDER'):
     with app.app_context():
