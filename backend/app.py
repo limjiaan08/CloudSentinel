@@ -41,16 +41,25 @@ CORS(app, resources={r"/*": {
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 if os.environ.get('RENDER') and DATABASE_URL:
-    # 1. Update the protocol prefix to use the cloud-ready pymysql engine driver
+    # 1. Standardize protocol prefix to use the cloud-ready pymysql driver
     if DATABASE_URL.startswith("mysql://"):
         DATABASE_URL = DATABASE_URL.replace("mysql://", "mysql+pymysql://", 1)
     
-    # 2. Fix the PyMySQL parameter validation bug by converting hyphenated keys to underscores
-    if "ssl-mode=" in DATABASE_URL:
-        DATABASE_URL = DATABASE_URL.replace("ssl-mode=", "ssl_mode=")
+    # 2. Clean out any raw query strings from the dashboard variable to prevent driver crashes
+    if "?" in DATABASE_URL:
+        DATABASE_URL = DATABASE_URL.split("?")[0]
     
     app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
-    print("Cloud Mode: Connected to Free Aiven MySQL Cloud Database Tier.")
+    
+    # 3. Pass SSL settings cleanly as structured connection arguments instead of raw string text
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        "connect_args": {
+            "ssl": {
+                "ssl_mode": "REQUIRED"
+            }
+        }
+    }
+    print("Cloud Mode: Connected to Free Aiven MySQL Cloud Database Tier via secure arguments.")
 else:
     # Local Development: Fall back to your laptop's original local MySQL server
     db_user = os.getenv('DB_USER', 'root')
