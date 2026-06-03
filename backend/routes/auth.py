@@ -33,6 +33,18 @@ def make_aware(dt):
 
     return dt
 
+def normalize(dt):
+    malaysia_tz = pytz.timezone("Asia/Kuala_Lumpur")
+
+    if dt is None:
+        return None
+
+    # if naive → assume Malaysia time
+    if dt.tzinfo is None:
+        return malaysia_tz.localize(dt)
+
+    return dt.astimezone(malaysia_tz)
+
 def get_serializer():
     #Helper function to get the serializer with the correct app SECRET_KEY
     return URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
@@ -437,9 +449,10 @@ def auto_logout():
         
         try:
             if session.start_time:
-                start_ts = session.start_time.timestamp()
-                end_ts = session.end_time.timestamp()
-                session.duration = int(end_ts - start_ts)
+                start = normalize(session.start_time)
+                end = normalize(session.end_time)
+
+                session.duration = int((end - start).total_seconds())
             
             db.session.commit()
             return jsonify({
