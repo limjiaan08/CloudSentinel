@@ -19,8 +19,10 @@ bcrypt = Bcrypt()
 # Mail tool: Manages SMTP connections for sending system emails
 mail = Mail()
 
-def get_utc_time():
-    return datetime.now(timezone.utc)
+MY_TZ = pytz.timezone("Asia/Kuala_Lumpur")
+
+def get_my_time():
+    return datetime.now(MY_TZ)
 
 def make_aware(dt):
     # Converts naive datetime from database to timezone-aware datetime in Malaysia timezone
@@ -114,7 +116,7 @@ def signup():
         user_name = name,
         user_email = email,
         user_password = hashed_password,
-        created_at = get_utc_time()
+        created_at = get_my_time()
     )
 
     try:
@@ -145,7 +147,7 @@ def login():
         # Create a new session
         new_session = Session(
             user_id = user.user_id,
-            start_time = get_utc_time()
+            start_time = get_my_time()
         )
 
         try:
@@ -154,7 +156,7 @@ def login():
             
             # Generate JWT token with 24-hour expiration
             token = generate_jwt_token(user.user_id, new_session.session_id, expiration_hours=24)
-            token_expiry = get_utc_time() + timedelta(hours=24)
+            token_expiry = get_my_time() + timedelta(hours=24)
             
             # Store token and expiry in session
             new_session.token = token
@@ -197,19 +199,15 @@ def logout():
         return jsonify({"error": "Session not found"}), 404
 
     try:
-        # ✅ ALWAYS use UTC
-        end_time = get_utc_time()
-
         start_time = session.start_time
+        end_time = get_my_time()
 
-        # ✅ FIX: normalize DB datetime (important)
+        # 🔥 ensure both are Malaysia-aware
         if start_time.tzinfo is None:
-            start_time = start_time.replace(tzinfo=timezone.utc)
+            start_time = MY_TZ.localize(start_time)
 
-        if end_time.tzinfo is None:
-            end_time = end_time.replace(tzinfo=timezone.utc)
+        end_time = MY_TZ.localize(end_time.replace(tzinfo=None))
 
-        # ✅ SAFE calculation
         duration_seconds = int((end_time - start_time).total_seconds())
 
         session.end_time = end_time
@@ -374,7 +372,7 @@ def token_required(f):
             }), 401
 
         # Check token expiry time
-        if session.token_expiry and make_aware(session.token_expiry) < get_utc_time():
+        if session.token_expiry and make_aware(session.token_expiry) < get_my_time():
             session.is_active = 0  # Mark session as inactive
             db.session.commit()
             return jsonify({
@@ -425,7 +423,7 @@ def verify_token():
         return jsonify({"valid": False, "message": "Session is not active or token has been revoked"}), 401
     
     # Check if token has expired
-    if session.token_expiry and make_aware(session.token_expiry) < get_utc_time():
+    if session.token_expiry and make_aware(session.token_expiry) < get_my_time():
         # Token has expired, mark session as inactive
         session.is_active = 0
         db.session.commit()
@@ -462,7 +460,7 @@ def auto_logout():
     session = Session.query.filter_by(token=token).first()
     if session:
         session.is_active = 0
-        session.end_time = get_utc_time()
+        session.end_time = get_my_time()
         
         try:
             if session.start_time:
@@ -518,7 +516,7 @@ def get_user_profile(user_id):
         "last_login": last_session.start_time.isoformat() if last_session and last_session.start_time else None,
         "last_session_duration": last_session.duration if last_session else None,
         "token_expiry": current_session.token_expiry.isoformat() if current_session and current_session.token_expiry else None,
-        "is_token_valid": current_session is not None and (not current_session.token_expiry or make_aware(current_session.token_expiry) > get_utc_time())
+        "is_token_valid": current_session is not None and (not current_session.token_expiry or make_aware(current_session.token_expiry) > get_my_time())
     }), 200
 
 # --- UPDATE USER PROFILE ---
@@ -566,7 +564,7 @@ def re_authenticate(user_id):
     current_session = Session.query.filter_by(token=request.token).first()
     if current_session:
         current_session.is_active = 0
-        current_session.end_time = get_utc_time()
+        current_session.end_time = get_my_time()
 
     # Calculate duration for the current session before revoking
         if current_session and current_session.start_time:
@@ -577,7 +575,7 @@ def re_authenticate(user_id):
     # Create new session
     new_session = Session(
         user_id=user_id,
-        start_time=get_utc_time()
+        start_time=get_my_time()
     )
     
     try:
@@ -586,7 +584,7 @@ def re_authenticate(user_id):
         
         # Generate new JWT token
         new_token = generate_jwt_token(user_id, new_session.session_id, expiration_hours=24)
-        new_token_expiry = get_utc_time() + timedelta(hours=24)
+        new_token_expiry = get_my_time() + timedelta(hours=24)
         
         new_session.token = new_token
         new_session.token_expiry = new_token_expiry
@@ -624,7 +622,7 @@ def renew_token(user_id):
     # Create new session
     new_session = Session(
         user_id=user_id,
-        start_time=get_utc_time()
+        start_time=get_my_time()
     )
     
     try:
@@ -633,7 +631,7 @@ def renew_token(user_id):
         
         # Generate new JWT token with 24-hour expiration
         new_token = generate_jwt_token(user_id, new_session.session_id, expiration_hours=24)
-        new_token_expiry = get_utc_time() + timedelta(hours=24)
+        new_token_expiry = get_my_time() + timedelta(hours=24)
         
         new_session.token = new_token
         new_session.token_expiry = new_token_expiry
