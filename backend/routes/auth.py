@@ -130,58 +130,70 @@ def signup():
 # --- SIGN IN ---
 @auth_bp.route('/login', methods=['POST'])
 def login():
-    # Endpoint: Authenticates user credentials and generates JWT token for session management
+
     data = request.get_json()
     email = data.get('email')
     password = data.get('password')
 
-    # Input field validation
     if not email or not password:
         return jsonify({"error": "Email and password are required"}), 400
-    
-    # Find user in database
+
     user = User.query.filter_by(user_email=email).first()
 
-    # Verify password
-    if user and bcrypt.check_password_hash(user.user_password, password):
-        # Create a new session
+    if not user or not bcrypt.check_password_hash(user.user_password, password):
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    try:
+        # 🔥 OPTIONAL BUT RECOMMENDED: close old active sessions
+        Session.query.filter_by(
+            user_id=user.user_id,
+            is_active=1
+        ).update({
+            "is_active": 0,
+            "end_time": get_my_time()
+        })
+
+        # --- create new session ---
         new_session = Session(
-            user_id = user.user_id,
-            start_time = get_my_time()
+            user_id=user.user_id,
+            start_time=get_my_time()
         )
 
-        try:
-            db.session.add(new_session)
-            db.session.flush()  # Flush to get the session_id before commit
-            
-            # Generate JWT token with 24-hour expiration
-            token = generate_jwt_token(user.user_id, new_session.session_id, expiration_hours=24)
-            token_expiry = get_my_time() + timedelta(hours=24)
-            
-            # Store token and expiry in session
-            new_session.token = token
-            new_session.token_expiry = token_expiry
-            new_session.is_active = 1
-            
-            db.session.commit()
+        db.session.add(new_session)
+        db.session.flush()
 
-            return jsonify({
-                "message": "Login successful",
-                "user_id": user.user_id,
-                "user_name": user.user_name,
-                "session_id": new_session.session_id,
-                "token": token,
-                "token_expiry": token_expiry.isoformat()
-            }), 200
-        except Exception as e:
-            db.session.rollback()
-            return jsonify({"error": "Could not create session"}), 500
-    else:
-        return jsonify({"error": "Invalid email or password"}), 401
+        # --- generate token ---
+        token = generate_jwt_token(
+            user.user_id,
+            new_session.session_id,
+            expiration_hours=24
+        )
+
+        expiry_time = get_my_time() + timedelta(hours=24)
+
+        new_session.token = token
+        new_session.token_expiry = expiry_time
+        new_session.is_active = 1
+
+        db.session.commit()
+
+        return jsonify({
+            "message": "Login successful",
+            "user_id": user.user_id,
+            "user_name": user.user_name,
+            "session_id": new_session.session_id,
+            "token": token,
+            "token_expiry": expiry_time.isoformat()
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Could not create session", "details": str(e)}), 500
 
 # --- LOGOUT ---
 @auth_bp.route('/logout', methods=['POST'])
 def logout():
+
     data = request.get_json()
     token = data.get('token')
     session_id = data.get('session_id')
@@ -192,21 +204,25 @@ def logout():
     session = None
     if token:
         session = Session.query.filter_by(token=token).first()
-    elif session_id:
+    else:
         session = Session.query.filter_by(session_id=session_id).first()
 
     if not session:
         return jsonify({"error": "Session not found"}), 404
 
     try:
-        start_time = session.start_time
+        # ✅ ALWAYS use Malaysia-aware datetime directly
         end_time = get_my_time()
 
-        # 🔥 ensure both are Malaysia-aware
-        if start_time.tzinfo is None:
+        start_time = session.start_time
+
+        # ensure start_time is timezone-aware
+        if start_time and start_time.tzinfo is None:
             start_time = MY_TZ.localize(start_time)
 
-        end_time = MY_TZ.localize(end_time.replace(tzinfo=None))
+        # ❌ DO NOT re-localize end_time (this was your bug)
+        if end_time.tzinfo is None:
+            end_time = MY_TZ.localize(end_time)
 
         duration_seconds = int((end_time - start_time).total_seconds())
 
@@ -483,40 +499,53 @@ def auto_logout():
 @auth_bp.route('/user/<user_id>', methods=['GET'])
 @token_required
 def get_user_profile(user_id):
-    """
-    Get user profile information including:
-    - User basic info (name, email, created_at)
-    - Last login/session info
-    - Current token expiry time
-    """
+
     user = User.query.filter_by(user_id=user_id).first()
-    
     if not user:
         return jsonify({"error": "User not found"}), 404
-    
-    # Get the current active session from the request context
+
+    # --- current session ---
     current_session = Session.query.filter_by(
         token=request.token,
         is_active=1
     ).first()
-    
-    # Get the last session
-    last_session = Session.query.filter_by(user_id=user_id).order_by(
-        Session.end_time.desc()
-    ).first()
+
+    # --- last COMPLETED session (IMPORTANT FIX) ---
+    last_session = Session.query.filter(
+        Session.user_id == user_id,
+        Session.end_time.isnot(None)   # 🔥 only finished sessions
+    ).order_by(Session.end_time.desc()).first()
+
+    # --- safe duration calculation ---
+    last_session_duration = None
+    last_login = None
+
+    if last_session:
+        last_login = last_session.start_time.isoformat() if last_session.start_time else None
+        last_session_duration = last_session.duration
+
     print("LAST SESSION ID:", last_session.session_id if last_session else None)
     print("START:", last_session.start_time if last_session else None)
-    print("DURATION:", last_session.duration if last_session else None)
-    
+    print("DURATION:", last_session_duration)
+
     return jsonify({
         "user_id": user.user_id,
         "user_name": user.user_name,
         "user_email": user.user_email,
         "created_at": user.created_at.isoformat() if user.created_at else None,
-        "last_login": last_session.start_time.isoformat() if last_session and last_session.start_time else None,
-        "last_session_duration": last_session.duration if last_session else None,
-        "token_expiry": current_session.token_expiry.isoformat() if current_session and current_session.token_expiry else None,
-        "is_token_valid": current_session is not None and (not current_session.token_expiry or make_aware(current_session.token_expiry) > get_my_time())
+
+        # ✅ safe last session info
+        "last_login": last_login,
+        "last_session_duration": last_session_duration,
+
+        # current session info
+        "token_expiry": current_session.token_expiry.isoformat()
+            if current_session and current_session.token_expiry else None,
+
+        "is_token_valid": (
+            current_session is not None and
+            (not current_session.token_expiry or make_aware(current_session.token_expiry) > get_my_time())
+        )
     }), 200
 
 # --- UPDATE USER PROFILE ---
@@ -551,53 +580,60 @@ def update_user_profile(user_id):
 @auth_bp.route('/user/<user_id>/re-authenticate', methods=['POST'])
 @token_required
 def re_authenticate(user_id):
-    """
-    Re-authenticate user by generating a new token.
-    Used when user wants to extend session or verify identity.
-    """
+
     user = User.query.filter_by(user_id=user_id).first()
-    
     if not user:
         return jsonify({"error": "User not found"}), 404
-    
-    # Revoke current session
-    current_session = Session.query.filter_by(token=request.token).first()
-    if current_session:
-        current_session.is_active = 0
-        current_session.end_time = get_my_time()
 
-    # Calculate duration for the current session before revoking
-        if current_session and current_session.start_time:
-            start_ts = current_session.start_time.timestamp()
-            end_ts = current_session.end_time.timestamp()
-            current_session.duration = int(end_ts - start_ts)
-    
-    # Create new session
-    new_session = Session(
-        user_id=user_id,
-        start_time=get_my_time()
-    )
-    
     try:
+        # --- 1. Close current session ---
+        current_session = Session.query.filter_by(token=request.token, is_active=1).first()
+
+        if current_session:
+            end_time = get_my_time()
+            start_time = current_session.start_time
+
+            # ensure timezone safety
+            if start_time.tzinfo is None:
+                start_time = MY_TZ.localize(start_time)
+
+            current_session.end_time = end_time
+            current_session.is_active = 0
+            current_session.duration = int(
+                (end_time - start_time).total_seconds()
+            )
+
+        db.session.flush()  # 🔥 IMPORTANT: ensure DB state is consistent
+
+        # --- 2. Create new session ---
+        new_session = Session(
+            user_id=user_id,
+            start_time=get_my_time()
+        )
+
         db.session.add(new_session)
         db.session.flush()
-        
-        # Generate new JWT token
-        new_token = generate_jwt_token(user_id, new_session.session_id, expiration_hours=24)
-        new_token_expiry = get_my_time() + timedelta(hours=24)
-        
+
+        # --- 3. Generate new token ---
+        new_token = generate_jwt_token(
+            user_id,
+            new_session.session_id,
+            expiration_hours=24
+        )
+
         new_session.token = new_token
-        new_session.token_expiry = new_token_expiry
+        new_session.token_expiry = get_my_time() + timedelta(hours=24)
         new_session.is_active = 1
-        
+
         db.session.commit()
-        
+
         return jsonify({
             "message": "Re-authenticated successfully",
             "token": new_token,
-            "token_expiry": new_token_expiry.isoformat(),
+            "token_expiry": new_session.token_expiry.isoformat(),
             "session_id": new_session.session_id
         }), 200
+
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
