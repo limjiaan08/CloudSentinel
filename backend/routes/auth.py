@@ -26,6 +26,10 @@ resend.api_key = os.getenv('RESEND_API_KEY')
 
 def send_reset_email(email, user_name, reset_link):
     try:
+        if not resend.api_key:
+            print("❌ Missing RESEND_API_KEY")
+            return
+
         response = resend.Emails.send({
             "from": "CloudSentinel <onboarding@resend.dev>",
             "to": [email],
@@ -41,7 +45,7 @@ def send_reset_email(email, user_name, reset_link):
         print("✅ Email sent:", response)
 
     except Exception as e:
-        print("❌ Email failed:", str(e))
+        print("❌ Email failed:", repr(e))
 
 MY_TZ = pytz.timezone("Asia/Kuala_Lumpur")
 
@@ -298,11 +302,11 @@ def forgot_password():
 
         reset_link = f"{os.getenv('FRONTEND_URL')}/reset-password/{token}"
 
-        # 🔥 NON-BLOCKING (safe now because Resend is fast HTTP API)
-        Thread(
-            target=send_reset_email,
-            args=(email, user.user_name, reset_link)
-        ).start()
+        send_reset_email(email, user.user_name, reset_link)
+
+    print("Sending email to:", email)
+    print("Reset link:", reset_link)
+    print("API KEY exists:", bool(resend.api_key))
 
     return jsonify({
         "message": "If an account matches that email, a reset link has been sent."
