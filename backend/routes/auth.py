@@ -28,33 +28,34 @@ SMTP_PORT = 587
 SMTP_LOGIN = os.getenv("BREVO_LOGIN")
 SMTP_PASSWORD = os.getenv("BREVO_PASSWORD")
 
-resend.api_key = os.getenv('RESEND_API_KEY')
 
 def send_reset_email(to_email, username, reset_link):
     try:
         msg = MIMEText(f"""
 Hi {username},
 
-Click the link below to reset your password:
-
+Reset your password:
 {reset_link}
-
-If you did not request this, ignore this email.
 """)
 
         msg["Subject"] = "Reset Password"
         msg["From"] = f"Cloud Sentinel <{SMTP_LOGIN}>"
         msg["To"] = to_email
 
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        # 🔥 IMPORTANT FIX: ADD TIMEOUT
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=10)
+
+        server.ehlo()
         server.starttls()
+        server.ehlo()
+
         server.login(SMTP_LOGIN, SMTP_PASSWORD)
 
         result = server.sendmail(SMTP_LOGIN, [to_email], msg.as_string())
 
-        print("SMTP RESULT:", result)  # {} means success
-
         server.quit()
+
+        print("SMTP RESULT:", result)
         return True
 
     except Exception as e:
