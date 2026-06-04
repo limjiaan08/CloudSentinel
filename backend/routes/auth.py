@@ -11,8 +11,9 @@ import os
 import jwt
 import smtplib
 from threading import Thread
-import resend
 from email.mime.text import MIMEText
+import sib_api_v3_sdk
+from sib_api_v3_sdk import ApiException
 
 # Define the blueprint (mini-app for authentication)
 auth_bp = Blueprint('auth', __name__)
@@ -28,38 +29,35 @@ SMTP_PORT = 587
 SMTP_LOGIN = os.getenv("BREVO_LOGIN")
 SMTP_PASSWORD = os.getenv("BREVO_PASSWORD")
 
-
 def send_reset_email(to_email, username, reset_link):
     try:
-        msg = MIMEText(f"""
-Hi {username},
+        api_key = os.getenv("BREVO_API_KEY")
 
-Reset your password:
-{reset_link}
-""")
+        configuration = sib_api_v3_sdk.Configuration()
+        configuration.api_key['api-key'] = api_key
 
-        msg["Subject"] = "Reset Password"
-        msg["From"] = f"Cloud Sentinel <{SMTP_LOGIN}>"
-        msg["To"] = to_email
+        api_instance = sib_api_v3_sdk.TransactionalEmailsApi(
+            sib_api_v3_sdk.ApiClient(configuration)
+        )
 
-        # 🔥 IMPORTANT FIX: ADD TIMEOUT
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=10)
+        send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
+            to=[{"email": to_email}],
+            sender={"name": "Cloud Sentinel", "email": "yourverified@email.com"},
+            subject="Reset Password",
+            html_content=f"""
+                <h3>Hello {username}</h3>
+                <p>Click below to reset your password:</p>
+                <a href="{reset_link}">Reset Password</a>
+            """
+        )
 
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
+        api_instance.send_transac_email(send_smtp_email)
 
-        server.login(SMTP_LOGIN, SMTP_PASSWORD)
-
-        result = server.sendmail(SMTP_LOGIN, [to_email], msg.as_string())
-
-        server.quit()
-
-        print("SMTP RESULT:", result)
+        print("EMAIL SENT SUCCESSFULLY")
         return True
 
-    except Exception as e:
-        print("EMAIL ERROR:", str(e))
+    except ApiException as e:
+        print("BREVO API ERROR:", e)
         return False
 
 MY_TZ = pytz.timezone("Asia/Kuala_Lumpur")
