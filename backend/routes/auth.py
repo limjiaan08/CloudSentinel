@@ -30,22 +30,36 @@ SMTP_PASSWORD = os.getenv("BREVO_PASSWORD")
 
 resend.api_key = os.getenv('RESEND_API_KEY')
 
-def send_reset_email(to_email, reset_link):
-    msg = MIMEText(f"""
-    Click the link to reset your password:
+def send_reset_email(to_email, username, reset_link):
+    try:
+        msg = MIMEText(f"""
+Hi {username},
 
-    {reset_link}
-    """)
+Click the link below to reset your password:
 
-    msg["Subject"] = "Reset Password"
-    msg["From"] = "Cloud Sentinel <yourverifiedemail@example.com>"
-    msg["To"] = to_email
+{reset_link}
 
-    server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-    server.starttls()
-    server.login(SMTP_LOGIN, SMTP_PASSWORD)
-    server.sendmail(msg["From"], [to_email], msg.as_string())
-    server.quit()
+If you did not request this, ignore this email.
+""")
+
+        msg["Subject"] = "Reset Password"
+        msg["From"] = f"Cloud Sentinel <{SMTP_LOGIN}>"
+        msg["To"] = to_email
+
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(SMTP_LOGIN, SMTP_PASSWORD)
+
+        result = server.sendmail(SMTP_LOGIN, [to_email], msg.as_string())
+
+        print("SMTP RESULT:", result)  # {} means success
+
+        server.quit()
+        return True
+
+    except Exception as e:
+        print("EMAIL ERROR:", str(e))
+        return False
 
 MY_TZ = pytz.timezone("Asia/Kuala_Lumpur")
 
@@ -296,21 +310,28 @@ def forgot_password():
 
     user = User.query.filter_by(user_email=email).first()
 
+    success = False
     reset_link = None
 
     if user:
-        serializer = get_serializer()
-        token = serializer.dumps(email, salt='password-reset-salt')
-
-        reset_link = f"{os.getenv('FRONTEND_URL')}/reset-password/{token}"
-
         try:
-            send_reset_email(email, user.user_name, reset_link)
-        except Exception as e:
-            print("EMAIL FAILED:", str(e))
+            serializer = get_serializer()
+            token = serializer.dumps(email, salt='password-reset-salt')
 
-    print("Sending email to:", email)
+            reset_link = f"{os.getenv('FRONTEND_URL')}/reset-password/{token}"
+
+            success = send_reset_email(
+                email,
+                user.user_name,
+                reset_link
+            )
+
+        except Exception as e:
+            print("FORGOT PASSWORD ERROR:", str(e))
+
+    print("Email requested for:", email)
     print("Reset link:", reset_link)
+    print("Email sent status:", success)
 
     return jsonify({
         "message": "If an account matches that email, a reset link has been sent."
