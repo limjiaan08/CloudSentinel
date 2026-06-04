@@ -9,11 +9,7 @@ from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 from flask_mail import Message, Mail
 import os
 import jwt
-import smtplib
-from threading import Thread
-from email.mime.text import MIMEText
-import sib_api_v3_sdk
-from sib_api_v3_sdk.rest import ApiException
+import requests
 
 # Define the blueprint (mini-app for authentication)
 auth_bp = Blueprint('auth', __name__)
@@ -31,33 +27,50 @@ SMTP_PASSWORD = os.getenv("BREVO_PASSWORD")
 
 def send_reset_email(to_email, username, reset_link):
     try:
-        api_key = os.getenv("BREVO_API_KEY")
+        url = "https://api.brevo.com/v3/smtp/email"
 
-        configuration = sib_api_v3_sdk.Configuration()
-        configuration.api_key['api-key'] = api_key
+        headers = {
+            "accept": "application/json",
+            "api-key": os.getenv("BREVO_API_KEY"),
+            "content-type": "application/json"
+        }
 
-        api_instance = sib_api_v3_sdk.TransactionalEmailsApi(
-            sib_api_v3_sdk.ApiClient(configuration)
-        )
-
-        send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
-            to=[{"email": to_email}],
-            sender={"name": "Cloud Sentinel", "email": "yourverified@email.com"},
-            subject="Reset Password",
-            html_content=f"""
-                <h3>Hello {username}</h3>
-                <p>Click below to reset your password:</p>
-                <a href="{reset_link}">Reset Password</a>
+        payload = {
+            "sender": {
+                "name": "Cloud Sentinel",
+                "email": os.getenv("BREVO_SENDER_EMAIL")  # MUST be verified in Brevo
+            },
+            "to": [
+                {
+                    "email": to_email,
+                    "name": username
+                }
+            ],
+            "subject": "Reset Your Password",
+            "htmlContent": f"""
+                <div>
+                    <h2>Hello {username}</h2>
+                    <p>You requested a password reset.</p>
+                    <p>
+                        <a href="{reset_link}">
+                            Click here to reset your password
+                        </a>
+                    </p>
+                    <p>If you didn't request this, ignore this email.</p>
+                </div>
             """
-        )
+        }
 
-        api_instance.send_transac_email(send_smtp_email)
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
 
-        print("EMAIL SENT SUCCESSFULLY")
-        return True
+        print("BREVO STATUS:", response.status_code)
+        print("BREVO RESPONSE:", response.text)
 
-    except ApiException as e:
-        print("BREVO API ERROR:", e)
+        # IMPORTANT: real success check
+        return response.status_code == 201
+
+    except Exception as e:
+        print("EMAIL ERROR:", str(e))
         return False
 
 MY_TZ = pytz.timezone("Asia/Kuala_Lumpur")
