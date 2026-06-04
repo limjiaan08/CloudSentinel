@@ -296,17 +296,21 @@ def forgot_password():
 
     user = User.query.filter_by(user_email=email).first()
 
+    reset_link = None
+
     if user:
         serializer = get_serializer()
         token = serializer.dumps(email, salt='password-reset-salt')
 
         reset_link = f"{os.getenv('FRONTEND_URL')}/reset-password/{token}"
 
-        send_reset_email(email, user.user_name, reset_link)
+        try:
+            send_reset_email(email, user.user_name, reset_link)
+        except Exception as e:
+            print("EMAIL FAILED:", str(e))
 
     print("Sending email to:", email)
     print("Reset link:", reset_link)
-    print("API KEY exists:", bool(resend.api_key))
 
     return jsonify({
         "message": "If an account matches that email, a reset link has been sent."
