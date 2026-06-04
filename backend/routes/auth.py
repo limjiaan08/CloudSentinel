@@ -271,29 +271,35 @@ def forgot_password():
     user = User.query.filter_by(user_email=email).first()
 
     if user:
+        print("🔹 User found:", email)
+
         serializer = get_serializer()
         token = serializer.dumps(email, salt='password-reset-salt')
 
         reset_link = f"{os.getenv('FRONTEND_URL')}/reset-password/{token}"
 
+        print("🔹 Reset link:", reset_link)
+
         msg = Message(
             subject="CloudSentinel - Password Reset Request",
             recipients=[email],
-            body=f"""Hi {user.user_name},
+            body=f"""
+    Hi {user.user_name},
 
-Click below to reset password:
-{reset_link}
-
-This link expires in 30 minutes.
-"""
+    Click below to reset password:
+    {reset_link}
+    """
         )
 
-        # 🔥 NON-BLOCKING EMAIL (IMPORTANT FIX)
-        Thread(target=send_email, args=(current_app._get_current_object(), msg)).start()
+        try:
+            print("🔹 Attempting mail.send()")
 
-    return jsonify({
-        "message": "If an account matches that email, a reset link has been sent."
-    }), 200
+            mail.send(msg)
+
+            print("✅ MAIL SENT")
+
+        except Exception as e:
+            print("❌ MAIL ERROR:", str(e))
 
 # --- VERIFY PASSWORD RESET EMAIL TOKEN (GET) ---
 @auth_bp.route('/verify-reset-token/<token>', methods=['GET'])
