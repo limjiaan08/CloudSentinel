@@ -37,7 +37,7 @@ def send_reset_email(to_email, username, reset_link):
 
         payload = {
             "sender": {
-                "name": "Cloud Sentinel",
+                "name": "CloudSentinel",
                 "email": os.getenv("BREVO_SENDER_EMAIL")  # MUST be verified in Brevo
             },
             "to": [
