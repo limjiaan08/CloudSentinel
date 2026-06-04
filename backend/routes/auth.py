@@ -11,6 +11,7 @@ import os
 import jwt
 import smtplib
 from threading import Thread
+import resend
 
 # Define the blueprint (mini-app for authentication)
 auth_bp = Blueprint('auth', __name__)
@@ -20,6 +21,27 @@ bcrypt = Bcrypt()
 
 # Mail tool: Manages SMTP connections for sending system emails
 mail = Mail()
+
+resend.api_key = os.getenv('RESEND_API_KEY')
+
+def send_reset_email(email, user_name, reset_link):
+    try:
+        response = resend.Emails.send({
+            "from": "CloudSentinel <onboarding@resend.dev>",
+            "to": [email],
+            "subject": "CloudSentinel - Password Reset Request",
+            "html": f"""
+                <h3>Hi {user_name},</h3>
+                <p>Click below to reset your password:</p>
+                <a href="{reset_link}">Reset Password</a>
+                <p>This link expires in 30 minutes.</p>
+            """
+        })
+
+        print("✅ Email sent:", response)
+
+    except Exception as e:
+        print("❌ Email failed:", str(e))
 
 MY_TZ = pytz.timezone("Asia/Kuala_Lumpur")
 
@@ -271,35 +293,20 @@ def forgot_password():
     user = User.query.filter_by(user_email=email).first()
 
     if user:
-        print("🔹 User found:", email)
-
         serializer = get_serializer()
         token = serializer.dumps(email, salt='password-reset-salt')
 
         reset_link = f"{os.getenv('FRONTEND_URL')}/reset-password/{token}"
 
-        print("🔹 Reset link:", reset_link)
+        # 🔥 NON-BLOCKING (safe now because Resend is fast HTTP API)
+        Thread(
+            target=send_reset_email,
+            args=(email, user.user_name, reset_link)
+        ).start()
 
-        msg = Message(
-            subject="CloudSentinel - Password Reset Request",
-            recipients=[email],
-            body=f"""
-    Hi {user.user_name},
-
-    Click below to reset password:
-    {reset_link}
-    """
-        )
-
-        try:
-            print("🔹 Attempting mail.send()")
-
-            mail.send(msg)
-
-            print("✅ MAIL SENT")
-
-        except Exception as e:
-            print("❌ MAIL ERROR:", str(e))
+    return jsonify({
+        "message": "If an account matches that email, a reset link has been sent."
+    }), 200
 
 # --- VERIFY PASSWORD RESET EMAIL TOKEN (GET) ---
 @auth_bp.route('/verify-reset-token/<token>', methods=['GET'])
