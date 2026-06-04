@@ -13,7 +13,7 @@ import smtplib
 from threading import Thread
 from email.mime.text import MIMEText
 import sib_api_v3_sdk
-from sib_api_v3_sdk import ApiException
+from sib_api_v3_sdk.rest import ApiException
 
 # Define the blueprint (mini-app for authentication)
 auth_bp = Blueprint('auth', __name__)
