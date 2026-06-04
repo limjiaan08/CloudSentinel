@@ -12,6 +12,7 @@ import jwt
 import smtplib
 from threading import Thread
 import resend
+from email.mime.text import MIMEText
 
 # Define the blueprint (mini-app for authentication)
 auth_bp = Blueprint('auth', __name__)
@@ -22,30 +23,29 @@ bcrypt = Bcrypt()
 # Mail tool: Manages SMTP connections for sending system emails
 mail = Mail()
 
+SMTP_SERVER = "smtp-relay.brevo.com"
+SMTP_PORT = 587
+SMTP_LOGIN = os.getenv("BREVO_LOGIN")
+SMTP_PASSWORD = os.getenv("BREVO_PASSWORD")
+
 resend.api_key = os.getenv('RESEND_API_KEY')
 
-def send_reset_email(email, user_name, reset_link):
-    try:
-        if not resend.api_key:
-            print("❌ Missing RESEND_API_KEY")
-            return
+def send_reset_email(to_email, reset_link):
+    msg = MIMEText(f"""
+    Click the link to reset your password:
 
-        response = resend.Emails.send({
-            "from": "CloudSentinel <onboarding@resend.dev>",
-            "to": [email],
-            "subject": "CloudSentinel - Password Reset Request",
-            "html": f"""
-                <h3>Hi {user_name},</h3>
-                <p>Click below to reset your password:</p>
-                <a href="{reset_link}">Reset Password</a>
-                <p>This link expires in 30 minutes.</p>
-            """
-        })
+    {reset_link}
+    """)
 
-        print("✅ Email sent:", response)
+    msg["Subject"] = "Reset Password"
+    msg["From"] = "Cloud Sentinel <yourverifiedemail@example.com>"
+    msg["To"] = to_email
 
-    except Exception as e:
-        print("❌ Email failed:", repr(e))
+    server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+    server.starttls()
+    server.login(SMTP_LOGIN, SMTP_PASSWORD)
+    server.sendmail(msg["From"], [to_email], msg.as_string())
+    server.quit()
 
 MY_TZ = pytz.timezone("Asia/Kuala_Lumpur")
 
