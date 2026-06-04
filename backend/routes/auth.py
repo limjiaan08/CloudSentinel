@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from functools import wraps
 import pytz
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
-from flask_mail import Message, Mail
+from flask_mail import Mail
 import os
 import jwt
 import requests
