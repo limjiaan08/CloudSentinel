@@ -763,7 +763,7 @@ const Dashboard = ({ onLogout, user }) => {
                                                     </p>
 
                                                     <div className="flex flex-wrap gap-4 mt-2">
-                                                        {['Amazon S3', 'Amazon EBS'].map(svc => (
+                                                        {['Amazon S3', 'Amazon EC2','Amazon EBS'].map(svc => (
                                                             <div 
                                                                 key={svc} 
                                                                 className="flex items-center gap-2 px-2.5 py-1 bg-orange-50/50 border border-orange-100 rounded-md group hover:bg-orange-100/50 transition-all duration-300"
