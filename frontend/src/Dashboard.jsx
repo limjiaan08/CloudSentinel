@@ -769,7 +769,7 @@ const Dashboard = ({ onLogout, user }) => {
                                                                 className="flex items-center gap-2 px-2.5 py-1 bg-orange-50/50 border border-orange-100 rounded-md group hover:bg-orange-100/50 transition-all duration-300"
                                                             >
                                                                 <div className="w-1 h-1 rounded-full bg-[#FF9900] shadow-[0_0_5px_rgba(251,146,60,0.5)]" />
-                                                                <span className="text-[12px] font-bold text-[#FF9900] uppercase tracking-wider">
+                                                                <span className="text-[10px] font-bold text-[#FF9900] uppercase tracking-wider">
                                                                     {svc}
                                                                 </span>
                                                             </div>
