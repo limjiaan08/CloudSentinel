@@ -824,7 +824,7 @@ const Dashboard = ({ onLogout, user }) => {
                                                         Over-Permissive or Insecure <br/> Network Policies
                                                     </h5>
 
-                                                    <p className="text-slate-500 text-[13px] tracking-wide leading-relaxed mt-3 mb-6 mr-3">
+                                                    <p className="text-slate-500 text-[13px] tracking-wide leading-relaxed mt-3 mb-6 mr-3 pr-3">
                                                         Evaluates network isolation and egress. Audits for wide-open security group ingress, lack of segmentation, and unenabled flow logs.
                                                     </p>
 
