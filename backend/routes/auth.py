@@ -341,10 +341,6 @@ def forgot_password():
         except Exception as e:
             print("FORGOT PASSWORD ERROR:", str(e))
 
-    print("Email requested for:", email)
-    print("Reset link:", reset_link)
-    print("Email sent status:", success)
-
     return jsonify({
         "message": "If an account matches that email, a reset link has been sent."
     }), 200
